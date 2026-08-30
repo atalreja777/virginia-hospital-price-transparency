@@ -17,7 +17,8 @@ export default function Landing() {
 
   const basket = stats?.basket ?? [];
   const top = basket.slice(0, 10);
-  const maxHigh = top.length ? Math.max(...top.map((b) => b.high)) : 0;
+  // Shared log domain so every bar in the column is comparable.
+  const domain = top.length ? [Math.min(...top.map((b) => b.low)), Math.max(...top.map((b) => b.high))] : null;
   const ct = basket.find((b) => b.code === '70450');
 
   const ticker = stats ? [
@@ -126,7 +127,7 @@ export default function Landing() {
                   <Link to={`/procedure/${b.type}/${b.code}`} className="block row-hover py-1">
                     <SpreadBar
                       label={b.label} low={b.low} high={b.high} ratio={b.ratio}
-                      hospitals={b.hospitals} max={maxHigh} delay={i * 50}
+                      hospitals={b.hospitals} domain={domain} delay={i * 50}
                     />
                   </Link>
                 </Reveal>

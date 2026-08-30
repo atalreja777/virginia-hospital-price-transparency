@@ -29,7 +29,8 @@ export default function Statistics() {
   if (err) return <div className="pt-40 px-6 max-w-2xl mx-auto"><h1 className="t-title">The figures would not load.</h1><p className="t-body mt-3 opacity-70">{err}</p></div>;
   if (!s) return <Loading label="Loading the figures" />;
 
-  const maxHigh = Math.max(...s.basket.map((b) => b.high));
+  // Shared log domain so every bar in the column is comparable.
+  const domain = [Math.min(...s.basket.map((b) => b.low)), Math.max(...s.basket.map((b) => b.high))];
   const notPublishing = s.totals.hospitalsSeeded - s.totals.hospitalsPublishing;
 
   return (
@@ -68,6 +69,8 @@ export default function Statistics() {
                   the 10th percentile hospital to the 90th, so no single mistyped row can stretch it.
                 </p>
                 <p className="t-small mt-5 opacity-60 max-w-[44ch]">
+                  Bars sit on a shared logarithmic scale, because these procedures span
+                  four orders of magnitude and a linear axis would hide every cheap one.
                   Drug and supply codes are deliberately excluded from every comparison on this page.
                   They are billed per unit, so a difference between two hospitals often reflects a
                   unit of measure rather than a price.
@@ -79,7 +82,7 @@ export default function Statistics() {
               {s.basket.map((b, i) => (
                 <Reveal key={`${b.type}-${b.code}`} delay={Math.min(i * 35, 400)}>
                   <Link to={`/procedure/${b.type}/${b.code}`} className="block border-b rule hover:bg-paper-2 -mx-3 px-3 rounded transition-colors">
-                    <SpreadBar label={b.label} low={b.low} high={b.high} ratio={b.ratio} hospitals={b.hospitals} max={maxHigh} delay={Math.min(i * 35, 400)} />
+                    <SpreadBar label={b.label} low={b.low} high={b.high} ratio={b.ratio} hospitals={b.hospitals} domain={domain} delay={Math.min(i * 35, 400)} />
                   </Link>
                 </Reveal>
               ))}

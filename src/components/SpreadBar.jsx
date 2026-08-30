@@ -1,42 +1,50 @@
 import { fmtUSD } from '../lib/estimate.js';
 
 /**
- * One procedure's price range, drawn from the cheapest hospital to the dearest.
- * The bar is the whole argument: a wide bar means identical care costs wildly
- * different amounts depending only on where you walk in.
+ * One procedure's price range, from the cheaper Virginia hospitals to the dearer.
  *
- * Laid out as a ledger row — label, rule, figures — rather than a card, so a
- * column of them reads as a table of evidence.
+ * Plotted on a shared logarithmic axis. These procedures span four orders of
+ * magnitude — a blood count starts at $8, a joint replacement runs past $45,000 —
+ * and on a linear axis every cheap procedure collapses into an invisible sliver
+ * against the most expensive one. A log axis keeps both the absolute cost and
+ * the size of the gap readable in the same column, which is the whole point of
+ * putting them side by side.
  */
-export default function SpreadBar({ label, low, high, ratio, hospitals, max, delay = 0 }) {
-  const left = max ? (low / max) * 100 : 0;
-  const width = max ? Math.max(1.2, ((high - low) / max) * 100) : 0;
+export default function SpreadBar({ label, low, high, ratio, hospitals, domain, delay = 0 }) {
+  // domain = [min, max] in cents across every bar in the column
+  const lo = Math.max(1, domain?.[0] ?? low);
+  const hi = Math.max(lo * 1.0001, domain?.[1] ?? high);
+  const span = Math.log10(hi) - Math.log10(lo);
+  const pos = (v) => ((Math.log10(Math.max(1, v)) - Math.log10(lo)) / span) * 100;
+
+  const left = pos(low);
+  const width = Math.max(1.5, pos(high) - left);
 
   return (
-    <div className="grid sm:grid-cols-[minmax(0,20ch)_1fr_auto] gap-x-6 gap-y-2.5 items-center py-5">
+    <div className="grid sm:grid-cols-[minmax(0,17ch)_1fr_auto] gap-x-5 gap-y-2 items-center py-4">
       <div className="min-w-0">
-        <div className="text-[0.9375rem] font-medium tracking-[-0.018em] truncate">{label}</div>
-        <div className="t-label opacity-35 mt-1 tnum">{hospitals} hospitals</div>
+        <div className="text-[0.9375rem] font-medium tracking-[-0.016em] truncate">{label}</div>
+        <div className="t-small opacity-35 mt-0.5 tabular-nums">{hospitals} hospitals</div>
       </div>
 
       <div className="relative">
-        <div className="relative h-[7px] bg-paper-3">
+        <div className="relative h-[9px] rounded-full bg-paper-3/70">
           <div
-            className="absolute inset-y-0 bar-grow"
+            className="absolute inset-y-0 rounded-full bar-grow"
             style={{
               left: `${left}%`, width: `${width}%`, animationDelay: `${delay}ms`,
-              background: 'linear-gradient(90deg,var(--color-p1) 0%,var(--color-p3) 52%,var(--color-p5) 100%)',
+              background: 'linear-gradient(90deg,var(--color-p1),var(--color-p3) 55%,var(--color-p5))',
             }}
           />
         </div>
-        <div className="flex justify-between mt-2 t-figure text-[0.75rem] opacity-55">
+        <div className="flex justify-between mt-1.5 t-figure text-[0.6875rem] opacity-50">
           <span>{fmtUSD(low, { round: true })}</span>
           <span>{fmtUSD(high, { round: true })}</span>
         </div>
       </div>
 
-      <div className="t-figure text-[1.25rem] text-accent tabular-nums sm:text-right">
-        {ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}<span className="opacity-45 text-[0.875rem]">×</span>
+      <div className="t-num text-[1.125rem] text-accent sm:text-right tabular-nums">
+        {ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}<span className="opacity-40 text-[0.8125rem]">×</span>
       </div>
     </div>
   );

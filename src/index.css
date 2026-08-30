@@ -48,6 +48,9 @@
   --color-accent:     #0B7A6A;
   --color-accent-2:   #0E9584;
   --color-accent-ink: #FFFFFF;
+  /* The same teal is unreadable on near-black — 3.6:1, under the 4.5 small text
+     needs. This lighter cut reaches 9.9:1 and is used wherever the ground is dark. */
+  --color-accent-dk:  #2ED3B7;
 
   /* Five-step scale used by bars, pins and bands. */
   --color-p1: #0B7A6A;
@@ -361,3 +364,12 @@
 /* Last-resort guarantee: if scripting is off, nothing is ever hidden. */
 .no-js .reveal { opacity: 1 !important; transform: none !important; }
 .no-js .line-mask > span { transform: none !important; }
+
+/* Dark panels need the lighter cut of the accent to stay legible. Outside
+   @layer so it wins over the utility that set the colour in the first place. */
+.on-dark .text-accent,
+.bg-ink .text-accent { color: var(--color-accent-dk); }
+.on-dark .btn-accent,
+.bg-ink .btn-accent { background: var(--color-accent-dk); color: var(--color-ink); }
+.on-dark .btn-accent:hover,
+.bg-ink .btn-accent:hover { background: #5EE0C6; }
