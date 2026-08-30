@@ -36,15 +36,15 @@ export default function InsurancePanel({
   }, [availablePlans, plans]);
 
   return (
-    <section className="panel overflow-hidden">
+    <section className="rounded-[18px] bg-paper-2/70 border rule overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-paper-2 transition-colors"
+        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-paper-3/60 transition-colors"
       >
         <span>
-          <span className="t-label opacity-45 block">Step 2</span>
+          <span className="t-label opacity-40 block">Step 2 — optional</span>
           <span className="font-semibold tracking-[-0.016em] text-[1.0625rem] block mt-1">
             Your insurance
           </span>
@@ -252,7 +252,7 @@ export default function InsurancePanel({
               </span>
             </label>
 
-            <div className="mt-6 p-4 rounded-[2px] bg-paper-2 border rule">
+            <div className="mt-6 p-4 rounded-[12px] bg-card border rule">
               <p className="t-small font-medium">Do not know these numbers?</p>
               <p className="t-small opacity-75 mt-1.5">
                 Every plan must give you a Summary of Benefits and Coverage, a short standard

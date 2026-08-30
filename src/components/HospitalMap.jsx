@@ -222,13 +222,12 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
   return (
     <div className="relative w-full h-full">
       <div ref={el} className="w-full h-full bg-paper-2 [&_canvas]:saturate-[.55]" role="application" aria-label="Map of hospitals with published prices" />
-      {/* Top-left: the tile attribution owns the bottom edge. */}
-      <div className="absolute left-3 top-3 bg-card/95 backdrop-blur border rule rounded-[2px] px-2.5 py-2 pointer-events-none">
-        <div className="t-label opacity-40 mb-1.5 text-[0.625rem]">Price in this search</div>
-        <div className="flex items-center gap-1">
-          <span className="t-small opacity-50 mr-1 text-[0.6875rem]">low</span>
-          {SCALE.map((c) => <span key={c} className="w-4 h-2" style={{ background: c }} />)}
-          <span className="t-small opacity-50 ml-1 text-[0.6875rem]">high</span>
+      {/* Bottom-right: pins cluster centre-left and the attribution owns bottom-left. */}
+      <div className="absolute right-3 bottom-8 bg-card/95 backdrop-blur border rule rounded-full px-3 py-1.5 pointer-events-none shadow-[0_2px_10px_rgb(20_18_15/0.10)]">
+        <div className="flex items-center gap-1.5">
+          <span className="t-small opacity-55 text-[0.6875rem]">cheaper</span>
+          {SCALE.map((c) => <span key={c} className="w-3.5 h-2 rounded-[1px]" style={{ background: c }} />)}
+          <span className="t-small opacity-55 text-[0.6875rem]">dearer</span>
         </div>
       </div>
     </div>

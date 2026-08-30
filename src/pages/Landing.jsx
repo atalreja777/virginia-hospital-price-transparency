@@ -4,6 +4,7 @@ import SearchBox from '../components/SearchBox.jsx';
 import Reveal from '../components/Reveal.jsx';
 import SpreadBar from '../components/SpreadBar.jsx';
 import Marquee from '../components/Marquee.jsx';
+import PriceDemo from '../components/PriceDemo.jsx';
 import { fmtUSD } from '../lib/estimate.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
@@ -32,53 +33,62 @@ export default function Landing() {
   return (
     <>
       {/* ---------------------------------------------------------------- hero */}
-      <section className="on-dark relative min-h-[100svh] flex flex-col">
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 opacity-[0.06] pointer-events-none"
-          style={{
-            backgroundImage: 'linear-gradient(to right,#fff 1px,transparent 1px)',
-            backgroundSize: 'clamp(72px,8.5vw,132px) 100%',
-          }}
-        />
-
-        <div className="relative flex-1 flex flex-col justify-center max-w-[96rem] mx-auto w-full px-5 sm:px-8 pt-32 pb-12">
-          <Reveal as="p" className="t-label text-accent mb-10" delay={60}>
-            Virginia · Hospital price transparency
+      <section className="bg-paper pt-28 sm:pt-32 pb-16 sm:pb-20">
+        <div className="max-w-[80rem] mx-auto px-5 sm:px-8">
+          <Reveal delay={40}>
+            <span className="badge">
+              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+              Free · No account · Nothing you type leaves your browser
+            </span>
           </Reveal>
 
-          <h1 className="t-hero max-w-[15ch]">
-            <Reveal mask delay={120}>The same scan</Reveal>
-            <Reveal mask delay={210}>costs</Reveal>
-            <Reveal mask delay={300}>
-              <span className="text-accent tnum">
-                {ct ? fmtUSD(ct.low, { round: true }) : '$110'}
-              </span>
-              <span className="t-serif italic font-normal opacity-70"> or </span>
-              <span className="text-accent tnum">
-                {ct ? fmtUSD(ct.high, { round: true }) : '$3,004'}
-              </span>
-            </Reveal>
+          <h1 className="t-hero mt-7 max-w-[16ch]">
+            <Reveal mask delay={110}>Know what a</Reveal>
+            <Reveal mask delay={190}>hospital charges</Reveal>
+            <Reveal mask delay={270}>before you go.</Reveal>
           </h1>
 
-          <Reveal delay={460} className="mt-10 grid lg:grid-cols-[1fr_minmax(0,32rem)] gap-8 lg:gap-16 items-end">
-            <p className="t-lede max-w-[44ch] opacity-70">
-              Depending only on which Virginia hospital you walk into. Both prices are
-              published, because federal law says they must be. Almost nobody reads
-              the files. This site reads them for you.
+          <Reveal delay={420} className="mt-8 grid lg:grid-cols-[minmax(0,34rem)_minmax(0,30rem)] gap-8 lg:gap-14 lg:items-end">
+            <p className="t-lede opacity-70">
+              Search a procedure, set how far you will travel, and add your insurance.
+              You get the real negotiated price at each Virginia hospital and an estimate
+              of what you would actually pay — from the files hospitals are required by
+              law to publish, and almost nobody reads.
             </p>
             <div>
-              <SearchBox dark size="lg" />
-              <p className="t-small opacity-40 mt-3">
-                Search a procedure by name, or enter the code from your doctor's order.
+              <SearchBox size="lg" />
+              <p className="t-small opacity-45 mt-2.5">
+                Try “MRI”, “colonoscopy”, or the code from your doctor's order.
               </p>
             </div>
           </Reveal>
         </div>
+      </section>
 
-        <Reveal delay={640} className="relative border-t border-hair py-4 overflow-hidden">
-          {ticker.length > 0 && <Marquee items={ticker} />}
-        </Reveal>
+      {/* ------------------------------------------------------------ live demo */}
+      <section className="bg-paper pb-20 sm:pb-28">
+        <div className="max-w-[80rem] mx-auto px-5 sm:px-8">
+          <Reveal delay={80}>
+            <div className="flex items-end justify-between gap-6 flex-wrap mb-5">
+              <div>
+                <p className="t-label opacity-40">See it working</p>
+                <h2 className="t-title mt-2.5 max-w-[24ch]">
+                  Real prices, at real Virginia hospitals, right now.
+                </h2>
+              </div>
+              <p className="t-small opacity-50 max-w-[34ch]">
+                Pick a procedure. Each bar is one hospital's median negotiated price for
+                exactly the same billing code.
+              </p>
+            </div>
+          </Reveal>
+          <Reveal delay={140}><PriceDemo /></Reveal>
+        </div>
+      </section>
+
+      {/* -------------------------------------------------------------- ticker */}
+      <section className="bg-ink text-paper py-5 overflow-hidden">
+        {ticker.length > 0 && <Marquee items={ticker} />}
       </section>
 
       {/* -------------------------------------------------------- the argument */}

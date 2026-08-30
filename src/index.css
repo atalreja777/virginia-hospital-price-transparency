@@ -17,31 +17,44 @@
    ========================================================================== */
 
 @theme {
-  /* Ground and paper. Both carry a little warmth; pure grey reads clinical. */
-  --color-ink:        #0B0B0C;
-  --color-ink-2:      #141416;
-  --color-ink-3:      #1C1C1F;
-  --color-hair:       #2B2B2F;
+  /* ---- Ground -----------------------------------------------------------
+     Warm white, not black. This is a tool people open when they are worried
+     about a medical bill; a black screen with a red accent reads as an alarm.
+     Dark is used only inside panels, where it makes the data pop. */
+  --color-paper:      #FBFAF7;
+  --color-paper-2:    #F3F0EA;
+  --color-paper-3:    #E9E5DC;
+  --color-rule:       #DDD8CC;
+  --color-card:       #FFFFFF;
 
-  --color-paper:      #F6F4EF;
-  --color-paper-2:    #EDEAE3;
-  --color-paper-3:    #E2DED4;
-  --color-rule:       #CFCABB;
-  --color-card:       #FFFDF9;
+  --color-ink:        #14120F;   /* warm near-black, for type and dark panels */
+  --color-ink-2:      #1E1B17;
+  --color-ink-3:      #2A2620;
+  --color-hair:       #38332B;
 
-  /* One accent. It is the hot end of the price scale, so colour stays coherent:
-     expensive and "look here" are the same signal. */
-  --color-accent:     #FF4A1C;
-  --color-accent-2:   #FF6B41;
+  /* ---- Colour carries meaning ------------------------------------------
+     The palette IS the price scale. Teal means you are paying less, red means
+     more. Nothing is coloured decoratively, so a reader learns the scale once
+     and it holds on every chart, row, pin and badge. */
+  --color-low:        #0B7A6A;   /* cheapest — trust, relief */
+  --color-low-tint:   #E2F1EE;
+  --color-mid:        #C98A12;
+  --color-mid-tint:   #FBF0DA;
+  --color-high:       #C7402F;   /* dearest — caution, not alarm */
+  --color-high-tint:  #FAEAE6;
+
+  /* Brand accent doubles as the "low price" colour, so the thing the site is
+     for — finding the cheaper option — is the thing the brand colour means. */
+  --color-accent:     #0B7A6A;
+  --color-accent-2:   #0E9584;
   --color-accent-ink: #FFFFFF;
 
-  /* Price scale, cheap to dear. Ordered by lightness as well as hue so it
-     survives colour-blindness and greyscale printing. */
-  --color-p1: #0F7B72;
-  --color-p2: #4F9A4A;
-  --color-p3: #C69214;
-  --color-p4: #E2692A;
-  --color-p5: #B62419;
+  /* Five-step scale used by bars, pins and bands. */
+  --color-p1: #0B7A6A;
+  --color-p2: #5A9A47;
+  --color-p3: #C98A12;
+  --color-p4: #DB6B2A;
+  --color-p5: #C7402F;
 
   --font-display: "Bricolage Grotesque", "Archivo", ui-sans-serif, system-ui, sans-serif;
   --font-body:    "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -50,6 +63,12 @@
 
   --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-q:  cubic-bezier(0.76, 0, 0.24, 1);
+
+  /* Award-winning product sites round generously: pills for controls, soft
+     cards for panels. Square corners read as a spreadsheet. */
+  --radius-pill: 9999px;
+  --radius-card: 18px;
+  --radius-soft: 12px;
 }
 
 @layer base {
@@ -73,7 +92,7 @@
     font-feature-settings: "tnum" 1;
   }
 
-  ::selection { background: var(--color-accent); color: #fff; }
+  ::selection { background: var(--color-low-tint); color: var(--color-ink); }
 
   :focus-visible {
     outline: 2px solid var(--color-accent);
@@ -124,15 +143,28 @@
   .t-body  { font-size: 1rem;     line-height: 1.58; letter-spacing: -0.008em; }
   .t-small { font-size: 0.8125rem; line-height: 1.5;  letter-spacing: -0.002em; }
 
-  /* The eyebrow. Small uppercase needs POSITIVE tracking — the one place
-     letter-spacing should open up rather than close. */
+  /* Small caps label. Set in the body face, not mono — a monospaced eyebrow
+     over every section is a tic, and it made the page read like a terminal. */
   .t-label {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.11em;
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.045em;
     text-transform: uppercase;
   }
+
+  /* A badge, for the one place a label needs to sit on its own. */
+  .badge {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.375rem 0.875rem 0.375rem 0.75rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-low-tint);
+    color: var(--color-low);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: -0.006em;
+  }
+  .on-dark .badge { background: rgb(255 255 255 / 0.09); color: #7FD9C8; }
 
   /* The editorial number. The thing a reader remembers. */
   .t-stat {
@@ -166,13 +198,12 @@
 
   /* ---- Surfaces ---------------------------------------------------------- */
   .on-dark { background: var(--color-ink); color: var(--color-paper); }
-  .on-dark ::selection { background: var(--color-accent); color: #fff; }
+  .on-dark ::selection { background: var(--color-low-tint); color: var(--color-ink); }
 
-  /* A panel, not a card: square corners, one hairline, no shadow. */
   .panel {
     background: var(--color-card);
     border: 1px solid var(--color-rule);
-    border-radius: 3px;
+    border-radius: var(--radius-card);
   }
   .on-dark .panel { background: var(--color-ink-2); border-color: var(--color-hair); }
 
@@ -187,9 +218,9 @@
   .btn {
     display: inline-flex; align-items: center; gap: 0.5rem;
     padding: 0.6875rem 1.25rem;
-    border-radius: 2px;
+    border-radius: var(--radius-pill);
     font-family: var(--font-body);
-    font-weight: 500;
+    font-weight: 600;
     font-size: 0.875rem;
     letter-spacing: -0.012em;
     transition: background-color .2s var(--ease-out-expo), color .2s, border-color .2s, transform .18s var(--ease-out-expo);
@@ -212,7 +243,7 @@
     width: 100%;
     background: var(--color-card);
     border: 1px solid var(--color-rule);
-    border-radius: 2px;
+    border-radius: var(--radius-soft);
     padding: 0.6875rem 0.875rem;
     font-family: var(--font-body);
     font-size: 0.9375rem;
@@ -221,19 +252,19 @@
   .field:focus {
     outline: none;
     border-color: var(--color-ink);
-    box-shadow: 0 0 0 3px rgb(255 74 28 / 0.18);
+    box-shadow: 0 0 0 3px rgb(11 122 106 / 0.16);
   }
 
   /* A filter chip: square, hairline, inverts when on. */
   .chip {
     display: inline-flex; align-items: center; gap: 0.375rem;
-    padding: 0.375rem 0.75rem;
+    padding: 0.4375rem 0.875rem;
     border: 1px solid var(--color-rule);
-    border-radius: 2px;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 0.01em;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: -0.006em;
     background: transparent;
     transition: all .15s ease;
   }

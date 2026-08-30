@@ -11,7 +11,10 @@ export default function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
-  const onDark = pathname === '/' || pathname === '/data';
+  // Pages whose first screen is a dark panel need light nav type over it.
+  // The landing is light now, so it is deliberately not in this list.
+  const onDark = ['/data', '/insurance', '/methodology'].includes(pathname)
+              || pathname.startsWith('/hospital/');
 
   useEffect(() => {
     const f = () => setScrolled(window.scrollY > 24);
@@ -32,8 +35,8 @@ export default function Nav() {
       <div className="max-w-[92rem] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-6">
         <Link to="/" className="flex items-center gap-2.5 shrink-0 group" aria-label="Home">
           <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" className="shrink-0">
-            <rect width="32" height="32" rx="7" className={onDark ? 'fill-paper' : 'fill-ink'} />
-            <path d="M8 21.5 13 10l5 8 2-3.5 4 7" stroke="#FF4A1C" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <rect width="32" height="32" rx="8" className={onDark ? 'fill-paper' : 'fill-ink'} />
+            <path d="M8 21.5 13 10l5 8 2-3.5 4 7" stroke="#2ED3B7" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="font-semibold tracking-[-0.026em] text-[0.9375rem] leading-none whitespace-nowrap">
             What Virginia Hospitals Charge

@@ -78,23 +78,23 @@ export default function HospitalRow({ row, rank, band, cheapest, selected, onSel
 
       {selected && (
         <div className="pl-5 pr-4 sm:pl-11 sm:pr-5 pb-6 -mt-1">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4 py-5 border-y rule">
+          <div className="grid grid-cols-2 sm:grid-cols-4 py-5 border-t rule">
             {[
-              ['Gross charge', row.gross, 'List price, before discount.'],
-              ['Cash price', row.cash, 'Accepted from a self-paying patient.'],
-              ['Lowest negotiated', row.minNegotiated, 'Across every plan in the file.'],
-              ['Highest negotiated', row.maxNegotiated, 'Across every plan in the file.'],
-            ].map(([label, v, help]) => (
-              <div key={label}>
-                <div className="t-label opacity-40">{label}</div>
-                <div className="t-figure text-[1rem] mt-1.5">{fmtUSD(v, { round: true })}</div>
-                <div className="t-small opacity-45 mt-1 leading-snug">{help}</div>
+              ['Gross charge', row.gross, 'list price'],
+              ['Cash price', row.cash, 'if you self-pay'],
+              ['Lowest negotiated', row.minNegotiated, 'any plan'],
+              ['Highest negotiated', row.maxNegotiated, 'any plan'],
+            ].map(([label, v, help], i) => (
+              <div key={label} className={i > 0 ? 'sm:pl-6 sm:border-l rule' : ''}>
+                <div className="t-figure text-[1.0625rem]">{fmtUSD(v, { round: true })}</div>
+                <div className="t-small opacity-55 mt-1">{label}</div>
+                <div className="t-small opacity-35">{help}</div>
               </div>
             ))}
           </div>
 
           {row.cash != null && row.median != null && row.cash < row.median && (
-            <p className="t-small mt-5 px-4 py-3 border-l-2" style={{ borderColor: SCALE[0], background: 'rgba(15,123,114,.06)' }}>
+            <p className="t-small mt-4 px-4 py-3 rounded-[12px]" style={{ background: 'var(--color-low-tint)', color: 'var(--color-ink)' }}>
               The cash price here is <strong className="tabular-nums">{fmtUSD(row.median - row.cash, { round: true })}</strong> lower
               than the typical insured rate. Paying cash usually will not count toward your deductible,
               so weigh that before deciding.
@@ -102,7 +102,7 @@ export default function HospitalRow({ row, rank, band, cheapest, selected, onSel
           )}
 
           {est && (
-            <div className="mt-5 py-5 border-b rule">
+            <div className="mt-4 py-5 border-t rule">
               <p className="t-label opacity-40 mb-3.5">How your share was worked out</p>
               <dl className="space-y-2 t-small tabular-nums max-w-md">
                 <div className="flex justify-between"><dt className="opacity-60">Negotiated price</dt><dd className="t-figure">{fmtUSD(est.allowed)}</dd></div>
@@ -122,7 +122,7 @@ export default function HospitalRow({ row, rank, band, cheapest, selected, onSel
                 <span className="t-mono text-[0.625rem] opacity-40 group-open:rotate-90 transition-transform inline-block">▸</span>
                 All {row.matching.length} published {row.matching.length === 1 ? 'rate' : 'rates'} here
               </summary>
-              <div className="mt-3 max-h-72 overflow-y-auto scroll-thin border rule">
+              <div className="mt-3 max-h-72 overflow-y-auto scroll-thin border rule rounded-[12px]">
                 <table className="w-full text-[0.8125rem]">
                   <thead className="sticky top-0 bg-paper-2 text-left">
                     <tr>

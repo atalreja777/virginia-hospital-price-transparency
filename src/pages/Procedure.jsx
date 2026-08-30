@@ -111,7 +111,9 @@ export default function Procedure() {
     // With a carrier chosen, a hospital that never named it has nothing to say.
     if (brandMembers) out = out.filter((r) => r.hasMatch);
 
+    const beforeRadius = out.filter((r) => r.median != null).length;
     out = withDistance(out, origin, radius || null);
+    out.beforeRadius = beforeRadius;
 
     const price = (r) => r.median ?? r.low ?? Infinity;
     if (sort === 'price') out.sort((a, b) => price(a) - price(b));
@@ -121,6 +123,8 @@ export default function Procedure() {
   }, [data, hospitals, brandMembers, planId, origin, radius, sort]);
 
   const priced = rows.filter((r) => r.median != null);
+  // How many the radius is hiding — shown as a one-click way to widen.
+  const hiddenByRadius = Math.max(0, (rows.beforeRadius ?? priced.length) - priced.length);
   const cheapest = priced.length ? priced.reduce((a, b) => (a.median <= b.median ? a : b)) : null;
   const dearest = priced.length ? priced.reduce((a, b) => (a.median >= b.median ? a : b)) : null;
   const savings = cheapest && dearest ? dearest.median - cheapest.median : 0;
@@ -169,12 +173,19 @@ export default function Procedure() {
       <header className="border-b rule bg-paper">
         <div className="max-w-[92rem] mx-auto px-5 sm:px-8 py-8 sm:py-10">
           <div className="flex flex-wrap items-center gap-2.5 mb-4">
-            <span className="t-mono text-[0.6875rem] px-2 py-1 rounded bg-paper-3 tnum">
+            <span className="t-mono text-[0.6875rem] px-2.5 py-1 rounded-full bg-paper-3 tnum">
               {type === 'MS-DRG' ? 'DRG' : type} {code}
             </span>
-            <span className="t-small opacity-55 tnum">
-              {priced.length} of {rows.length} hospitals published a price
+            <span className="t-small opacity-60 tnum">
+              {origin && radius
+                ? <>Showing <strong>{priced.length}</strong> {priced.length === 1 ? 'hospital' : 'hospitals'} within {radius} miles of {zip}</>
+                : <><strong>{priced.length}</strong> Virginia {priced.length === 1 ? 'hospital publishes' : 'hospitals publish'} a price</>}
             </span>
+            {origin && radius > 0 && hiddenByRadius > 0 && (
+              <button onClick={() => setRadius(0)} className="t-small underline underline-offset-2 opacity-55 hover:opacity-100">
+                {hiddenByRadius} more further away
+              </button>
+            )}
           </div>
 
           <h1 className="t-title max-w-[36ch]">{data.desc || `Code ${code}`}</h1>
