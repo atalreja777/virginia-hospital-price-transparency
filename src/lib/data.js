@@ -334,8 +334,16 @@ const shardName = (type, code) => {
  */
 export async function loadCode(type, code) {
   const file = shardName(type, code);
-  const bucket = await once(file, () => getJSON(file));
-  const entry = bucket[code];
+  // A code nobody published has no shard at all. That is a real answer — "no
+  // Virginia hospital priced this" — not a failure, so it must not surface as
+  // a broken page.
+  let bucket;
+  try {
+    bucket = await once(file, () => getJSON(file));
+  } catch {
+    return null;
+  }
+  const entry = bucket?.[code];
   if (!entry) return null;
 
   const hospitals = Object.entries(entry.h).map(([hIdx, v]) => {

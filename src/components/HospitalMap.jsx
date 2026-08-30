@@ -222,12 +222,13 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
   return (
     <div className="relative w-full h-full">
       <div ref={el} className="w-full h-full bg-paper-2 [&_canvas]:saturate-[.55]" role="application" aria-label="Map of hospitals with published prices" />
-      <div className="absolute left-3 bottom-3 bg-card/95 backdrop-blur border rule rounded-[2px] px-3 py-2 pointer-events-none">
-        <div className="t-label opacity-45 mb-1.5">Price</div>
+      {/* Top-left: the tile attribution owns the bottom edge. */}
+      <div className="absolute left-3 top-3 bg-card/95 backdrop-blur border rule rounded-[2px] px-2.5 py-2 pointer-events-none">
+        <div className="t-label opacity-40 mb-1.5 text-[0.625rem]">Price in this search</div>
         <div className="flex items-center gap-1">
-          <span className="t-small opacity-55 mr-1">low</span>
-          {SCALE.map((c) => <span key={c} className="w-5 h-2" style={{ background: c }} />)}
-          <span className="t-small opacity-55 ml-1">high</span>
+          <span className="t-small opacity-50 mr-1 text-[0.6875rem]">low</span>
+          {SCALE.map((c) => <span key={c} className="w-4 h-2" style={{ background: c }} />)}
+          <span className="t-small opacity-50 ml-1 text-[0.6875rem]">high</span>
         </div>
       </div>
     </div>
