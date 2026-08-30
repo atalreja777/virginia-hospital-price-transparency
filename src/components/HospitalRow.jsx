@@ -26,24 +26,31 @@ export default function HospitalRow({
   const saving = dearest != null && row.median != null ? dearest - row.median : 0;
 
   return (
-    <li className={`relative transition-colors ${selected ? 'bg-paper-2' : 'hover:bg-paper-2/70'}`}>
-      {/* the band that ties this row to its map pin */}
-      <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: colour }} />
+    <li
+      className={`relative rounded-[24px] overflow-hidden transition-all duration-300
+        ${selected
+          ? 'bg-card shadow-[0_10px_36px_-10px_rgb(20_18_15/0.18)] ring-1 ring-[color:var(--color-rule)]'
+          : 'bg-card/70 hover:bg-card hover:shadow-[0_6px_24px_-10px_rgb(20_18_15/0.14)] ring-1 ring-[color:var(--color-rule)]/70'}`}
+    >
+      {/* colour strip: the same scale as the map pin, so a card and a pin are
+          obviously the same hospital */}
+      <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px]" style={{ background: colour }} />
 
       <button
         type="button" onClick={onSelect} aria-expanded={selected}
-        className="w-full text-left pl-5 pr-4 sm:pl-6 sm:pr-5 py-5"
+        className="w-full text-left px-5 sm:px-6 pt-6 pb-5"
       >
         <div className="flex items-start gap-4 sm:gap-6">
-          <span className="t-mono text-[0.6875rem] opacity-30 pt-1.5 tabular-nums shrink-0 w-5">
-            {String(rank).padStart(2, '0')}
+          <span className="shrink-0 w-8 h-8 rounded-full grid place-items-center text-[0.75rem] font-bold tabular-nums"
+                style={{ background: cheapest ? SCALE[0] : 'var(--color-paper-2)', color: cheapest ? '#fff' : 'inherit' }}>
+            {rank}
           </span>
 
           <span className="min-w-0 flex-1">
             {cheapest && (
               <span className="t-label mb-1.5 block" style={{ color: SCALE[0] }}>Lowest in this search</span>
             )}
-            <span className="block font-semibold tracking-[-0.02em] text-[1.0625rem] leading-snug">
+            <span className="block font-semibold tracking-[-0.02em] text-[1.125rem] leading-snug">
               {titleCase(row.name)}
             </span>
             <span className="block t-small opacity-55 mt-1">
@@ -60,7 +67,7 @@ export default function HospitalRow({
               <span className="t-small opacity-45">No price published</span>
             ) : (
               <>
-                <span className="t-num text-[1.5rem] block">{fmtUSD(row.median, { round: true })}</span>
+                <span className="t-num text-[1.75rem] block">{fmtUSD(row.median, { round: true })}</span>
                 <span className="t-mono text-[0.6875rem] opacity-45 tabular-nums block mt-1">
                   {spread ? `${fmtUSD(row.low, { round: true })} – ${fmtUSD(row.high, { round: true })}` : 'negotiated'}
                 </span>
@@ -70,7 +77,7 @@ export default function HospitalRow({
         </div>
 
         {row.median != null && (
-          <div className="mt-3.5 ml-9 sm:ml-11 grid grid-cols-[1fr_auto] items-center gap-x-5">
+          <div className="mt-4 ml-12 sm:ml-14 grid grid-cols-[1fr_auto] items-center gap-x-5">
             <PriceTrack
               low={row.low} median={row.median} high={row.high}
               domainLow={domainLow} domainHigh={domainHigh}
@@ -85,7 +92,7 @@ export default function HospitalRow({
         )}
 
         {est && (
-          <div className="mt-3.5 ml-9 sm:ml-11 pt-3.5 border-t rule flex flex-wrap items-baseline gap-x-7 gap-y-2">
+          <div className="mt-4 ml-12 sm:ml-14 pt-4 border-t rule flex flex-wrap items-baseline gap-x-7 gap-y-2">
             <span className="t-label opacity-40">You pay</span>
             <span className="t-num text-[1.375rem]" style={{ color: SCALE[0] }}>{fmtUSD(est.patient)}</span>
             <span className="t-small opacity-55">
@@ -99,7 +106,7 @@ export default function HospitalRow({
       </button>
 
       {selected && (
-        <div className="pl-5 pr-4 sm:pl-11 sm:pr-5 pb-6 -mt-1">
+        <div className="px-5 sm:px-6 pb-6 -mt-1">
           {(() => {
             const items = [
               ['Gross charge', row.gross, 'list price', '#8A8578'],

@@ -322,7 +322,7 @@ export default function Procedure() {
               </div>
             </div>
           ) : view === 'list' ? (
-            <ul className="ledger border-y rule">
+            <ul className="space-y-3">
               {rows.map((r, i) => (
                 <HospitalRow
                   key={r.ccn || r.hIdx}

@@ -70,8 +70,8 @@
   /* Award-winning product sites round generously: pills for controls, soft
      cards for panels. Square corners read as a spreadsheet. */
   --radius-pill: 9999px;
-  --radius-card: 18px;
-  --radius-soft: 12px;
+  --radius-card: 24px;
+  --radius-soft: 14px;
 }
 
 @layer base {
