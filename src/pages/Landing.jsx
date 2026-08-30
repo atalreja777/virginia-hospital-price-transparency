@@ -37,14 +37,7 @@ export default function Landing() {
       {/* ---------------------------------------------------------------- hero */}
       <section className="bg-paper pt-28 sm:pt-32 pb-16 sm:pb-20">
         <div className="max-w-[80rem] mx-auto px-5 sm:px-8">
-          <Reveal delay={40}>
-            <span className="badge">
-              <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              Free · No account · Nothing you type leaves your browser
-            </span>
-          </Reveal>
-
-          <h1 className="t-hero mt-7 max-w-[16ch]">
+          <h1 className="t-hero max-w-[16ch]">
             <Reveal mask delay={110}>Know what a</Reveal>
             <Reveal mask delay={190}>hospital charges</Reveal>
             <Reveal mask delay={270}>before you go.</Reveal>
