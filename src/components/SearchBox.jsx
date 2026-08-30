@@ -76,7 +76,7 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
   const big = size === 'lg';
 
   return (
-    <div ref={boxRef} className="relative w-full">
+    <div ref={boxRef} className={`relative w-full ${open ? 'z-50' : ''}`}>
       <div className={`relative flex items-center rounded-[2px] transition-[border-color,box-shadow] duration-200
         ${dark ? 'bg-ink-2 border border-hair focus-within:border-accent' : 'bg-card border border-rule focus-within:border-ink'}
         ${big ? 'h-[4.5rem]' : 'h-14'} focus-within:shadow-[0_0_0_3px_rgb(255_74_28/0.22)]`}>
@@ -108,7 +108,7 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
         <div
           id={listId}
           role="listbox"
-          className={`absolute z-40 mt-2 w-full rounded-[2px] overflow-hidden shadow-[0_18px_54px_rgb(0_0_0/0.18)]
+          className={`absolute z-[60] mt-2 left-0 w-full sm:min-w-[38rem] sm:max-w-[min(46rem,92vw)] rounded-[16px] overflow-hidden shadow-[0_20px_60px_-12px_rgb(20_18_15/0.35)]
             ${dark ? 'bg-ink-2 border border-hair' : 'bg-card border border-rule'}`}
         >
           {q.trim().length < 2 ? (
@@ -146,22 +146,25 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
                     aria-selected={i === active}
                     onMouseEnter={() => setActive(i)}
                     onMouseDown={(e) => { e.preventDefault(); go(r); }}
-                    className={`w-full text-left px-4 sm:px-5 py-3 flex items-center gap-4 transition-colors
+                    className={`w-full text-left px-4 sm:px-5 py-3.5 flex items-start gap-4 transition-colors
                       ${i === active ? (dark ? 'bg-ink-3' : 'bg-paper-2') : ''}`}
                   >
-                    <span className={`t-mono text-[0.6875rem] px-1.5 py-1 rounded shrink-0 tnum
+                    <span className={`t-mono text-[0.6875rem] px-2 py-1 rounded-full shrink-0 tnum mt-0.5
                       ${dark ? 'bg-hair' : 'bg-paper-3'}`}>
                       {TYPE_LABEL[r.type] || r.type} {r.code}
                     </span>
                     <span className="flex-1 min-w-0">
-                      <span className="block truncate text-[0.9375rem] font-medium tracking-[-0.012em]">{r.desc || 'No description published'}</span>
-                      <span className="block t-small opacity-55 tnum">
+                      <span className="block text-[0.9375rem] font-medium tracking-[-0.012em] leading-snug"
+                            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {r.desc || 'No description published'}
+                      </span>
+                      <span className="block t-small opacity-55 tnum mt-1">
                         {r.hospitals} {r.hospitals === 1 ? 'hospital' : 'hospitals'}
                         {r.p50 != null && <> · typically {fmtUSD(r.p50, { round: true })}</>}
                       </span>
                     </span>
                     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                         strokeWidth="1.8" className="opacity-30 shrink-0" aria-hidden="true">
+                         strokeWidth="1.8" className="opacity-30 shrink-0 mt-1" aria-hidden="true">
                       <path d="M6 3.5 10.5 8 6 12.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>

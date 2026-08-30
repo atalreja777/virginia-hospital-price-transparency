@@ -211,27 +211,28 @@ export default function Procedure() {
                 {hiddenByRadius} more further away
               </button>
             )}
-          </div>
 
-          <div className="flex items-start justify-between gap-6 flex-wrap">
-            <h1 className="t-title max-w-[32ch]">{data.desc || `Code ${code}`}</h1>
+            {/* Sits with the metadata rather than beside the title, where it was
+                competing with the one thing the page is about. */}
             <button
               onClick={() => setSwitching((v) => !v)}
               aria-expanded={switching}
-              className="btn btn-ghost shrink-0 !py-2 !px-4 !text-[0.8125rem]"
+              className="ml-auto inline-flex items-center gap-1.5 t-small font-medium opacity-55 hover:opacity-100 transition-opacity"
             >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <circle cx="9" cy="9" r="6.25" /><path d="m13.6 13.6 4 4" strokeLinecap="round" />
               </svg>
               {switching ? 'Close' : 'Change procedure'}
             </button>
           </div>
 
+          <h1 className="t-title max-w-[36ch]">{data.desc || `Code ${code}`}</h1>
+
           {/* Switching procedure here rather than sending people back to the
               home page — comparing two procedures is a normal thing to want,
               and a round trip loses the ZIP, radius and insurance already entered. */}
           {switching && (
-            <div className="mt-5 max-w-2xl" style={{ animation: 'searchIn .35s cubic-bezier(.16,1,.3,1) both' }}>
+            <div className="mt-5 max-w-2xl relative z-50" style={{ animation: 'searchIn .35s cubic-bezier(.16,1,.3,1) both' }}>
               <SearchBox autoFocus />
               <p className="t-small opacity-45 mt-2.5">
                 Your ZIP, radius and insurance carry over.

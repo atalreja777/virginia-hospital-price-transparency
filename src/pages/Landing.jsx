@@ -25,7 +25,7 @@ export default function Landing() {
   return (
     <>
       {/* ---------------------------------------------------------------- hero */}
-      <section className="on-dark relative min-h-[92svh] flex flex-col justify-end overflow-hidden">
+      <section className="on-dark relative min-h-[92svh] flex flex-col justify-end">
         <HeroField />
 
         <div className="relative max-w-[80rem] mx-auto w-full px-5 sm:px-8 pt-32 pb-14 sm:pb-20">
