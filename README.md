@@ -15,20 +15,20 @@ and see what you would actually pay at each hospital.
 | | |
 |---|---|
 | Virginia hospitals with usable prices | 73 of 125 in the federal registry |
-| Individual published prices | 4,959,867 |
-| Schedulable procedures | 17,184 |
+| Individual published prices | 7,414,620 |
+| Schedulable procedures | 17,517 |
 | Distinct insurance plan names | 320 |
-| Median price spread for the same code | 2.4× |
+| Median price spread for the same code | 3.0× |
 
-A CT scan of the head costs **$110** at one Virginia hospital and **$3,004** at
-another. A comprehensive metabolic panel ranges from **$11** to **$323**. A knee
-replacement runs **$12,527** to **$29,307**. Every one of those numbers is
+A CT scan of the head costs **$110** at one Virginia hospital and **$2,145** at
+another. A comprehensive metabolic panel ranges from **$11** to **$307**. A knee
+replacement runs **$12,527** to **$31,497**. Every one of those numbers is
 published by the hospitals themselves.
 
-Across the 14,670 procedures published by at least eight hospitals, **8,625 vary
-by 2× or more** and **2,004 vary by 10× or more**.
+Across the 15,333 procedures published by at least eight hospitals, **10,623 vary
+by 2× or more** and **1,816 vary by 10× or more**.
 
-In **45%** of cases where a hospital published both, its discounted cash price
+In **41%** of cases where a hospital published both, its discounted cash price
 was *lower* than its median negotiated insured rate.
 
 ## How it works
@@ -83,6 +83,7 @@ node pipeline/04_zips.mjs
 node pipeline/05_stats.mjs
 node pipeline/06_payers.mjs
 node pipeline/07_hospital_pages.mjs
+node pipeline/08_demo.mjs
 ```
 
 ```bash

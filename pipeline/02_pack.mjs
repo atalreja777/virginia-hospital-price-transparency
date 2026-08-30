@@ -60,8 +60,23 @@ const cents = (s) => {
 // Chargemaster junk wording that means "a supply line, not a service".
 const JUNK_DESC = /noncdm|non-cdm|charge record|^misc|^supply|do not use|deleted|inactive|placeholder/i;
 /**
+ * HCPCS Level I *is* CPT, and about a third of Virginia's hospitals label their
+ * whole code column "HCPCS" — the 5-digit CPT numbers included. Keyed as
+ * published, one procedure splits in two: CPT|45378 holding 32 hospitals and
+ * HCPCS|45378 holding the rest, so neither page shows the state. A 5-digit
+ * numeric code is never a valid Level II code (those are a letter plus four
+ * digits), so folding it into CPT is unambiguous rather than a guess.
+ * Applied everywhere a "TYPE|CODE" key is built, so the two halves merge.
+ */
+function normType(ct, code) {
+  return ct === 'HCPCS' && /^[0-9]{5}$/.test(code) ? 'CPT' : ct;
+}
+
+/**
  * Keep only codes a patient could plan and shop for.
- *  - CPT     : 5 digits. ER visits and critical care already dropped in SQL.
+ *  - CPT     : 5 digits, minus ER visits and critical care. The SQL drops those
+ *              only from rows already typed CPT, so the ones arriving through
+ *              normType have to be caught here instead.
  *  - MS-DRG  : planned inpatient stays.
  *  - HCPCS   : valid Level II format only. C-codes are device pass-throughs
  *              (screws, guide wires, catheters) billed incidentally during a
@@ -69,7 +84,7 @@ const JUNK_DESC = /noncdm|non-cdm|charge record|^misc|^supply|do not use|delet
  */
 function inScope(ct, code, desc) {
   if (JUNK_DESC.test(desc || '')) return false;
-  if (ct === 'CPT') return /^[0-9]{5}$/.test(code);
+  if (ct === 'CPT') return /^[0-9]{5}$/.test(code) && !(code >= '99281' && code <= '99292');
   if (ct === 'MS-DRG') return /^[0-9]{1,3}$/.test(code);
   if (ct === 'HCPCS') return /^[ABDEGHJKLMPQRSTVU][0-9]{4}$/.test(code);
   return false;
@@ -119,10 +134,24 @@ await readCSV(path.join(RAW, 'methodologies.csv'), (r) => methName.set(r[0], r[1
 
 /* ---------- 4. code descriptions ---------- */
 log('code descriptions');
-const codeDesc = new Map();                   // "TYPE|CODE" -> {d, nh}
+const codeDesc = new Map();                   // "TYPE|CODE" -> {d, nh, native}
 await readCSV(path.join(RAW, 'code_descriptions.csv'), (r) => {
   const [ct, code, desc, n_hosp] = r;
-  codeDesc.set(ct + '|' + code, { d: (desc || '').replace(/\s+/g, ' ').trim().slice(0, 120), nh: +n_hosp });
+  const nt = normType(ct, code);
+  const k = nt + '|' + code;
+  const d = (desc || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const nh = +n_hosp;
+  const native = ct === nt;                   // false only for a reclassified row
+  // Two source rows can land on one key now, and they are not equal in quality:
+  // a hospital that types a code as CPT usually carries the full AMA descriptor,
+  // while one that dumps everything under HCPCS carries chargemaster shorthand
+  // ("Egd remove foreign body"). So a native row always beats a reclassified one,
+  // and hospital count only breaks ties between rows of the same kind.
+  const prev = codeDesc.get(k);
+  const wins = !prev
+    || (native && !prev.native)
+    || (native === prev.native && (nh > prev.nh || (nh === prev.nh && d.length > prev.d.length)));
+  if (wins) codeDesc.set(k, { d, nh, native });
 });
 log('  ', codeDesc.size, 'codes described');
 
@@ -133,7 +162,7 @@ let chargeRows = 0;
 await readCSV(path.join(RAW, 'charges.csv'), (r) => {
   const [hospital_id, ct, code, setting, billing_class, gross, cash, mn, mx] = r;
   const hi = hIdx.get(hospital_id); if (hi == null) return;
-  const k = ct + '|' + code;
+  const k = normType(ct, code) + '|' + code;
   let m = charges.get(k); if (!m) charges.set(k, m = new Map());
   const prev = m.get(hi) || { g: null, c: null, mn: null, mx: null };
   const g = cents(gross), c = cents(cash), lo = cents(mn), hi2 = cents(mx);
@@ -164,7 +193,7 @@ await readCSV(path.join(RAW, 'rates.csv'), (r) => {
   const pl = dense(planIdx,  plans,  plan_id,  planName.get(plan_id)  || '');
   const se = dense(setIdx,   settings, setting || '', setting || '');
   const me = dense(methIdx,  methods, methodology_id || '', methName.get(methodology_id) || '');
-  const k = ct + '|' + code;
+  const k = normType(ct, code) + '|' + code;
   let a = byCode.get(k); if (!a) byCode.set(k, a = []);
   a.push(hi, pa, pl, se, me, v);
   rateRows++;
