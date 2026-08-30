@@ -1,33 +1,60 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Explain from './Explain.jsx';
 import MoneyInput from './MoneyInput.jsx';
+import ChoiceRow from './ChoiceRow.jsx';
+import CarrierPicker from './CarrierPicker.jsx';
 import { fmtUSD } from '../lib/estimate.js';
 
-/**
- * Insurance selection and benefits entry.
- *
- * The payer and plan lists are the names the hospitals themselves published in
- * their files, not a tidied-up marketing list. That is deliberate: matching the
- * user to the exact string in the file is what makes the rate real rather than
- * an average.
- */
+const $ = (d) => d * 100;
+
+// The round numbers real US plans actually use. Anything else goes in "Other".
+const DEDUCTIBLES = [
+  { label: 'None', value: 0 },
+  { label: '$500', value: $(500) },
+  { label: '$1,000', value: $(1000) },
+  { label: '$2,000', value: $(2000) },
+  { label: '$3,000', value: $(3000) },
+  { label: '$5,000', value: $(5000) },
+];
+const COINSURANCE = [
+  { label: '0%', value: 0 },
+  { label: '10%', value: 0.1 },
+  { label: '20%', value: 0.2 },
+  { label: '30%', value: 0.3 },
+  { label: '40%', value: 0.4 },
+];
+const OOP = [
+  { label: '$3,000', value: $(3000) },
+  { label: '$5,000', value: $(5000) },
+  { label: '$7,500', value: $(7500) },
+  { label: '$9,200', value: $(9200) },
+];
+
+function Field({ title, explain, children }) {
+  return (
+    <div className="py-6 border-t rule first:border-t-0 first:pt-0">
+      <div className="flex items-baseline justify-between gap-4 flex-wrap mb-3.5">
+        <h4 className="text-[1rem] font-semibold tracking-[-0.014em]">{title}</h4>
+        {explain}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function InsurancePanel({
   payers, plans, availableBrands, availablePlans,
   brand, planId, onBrand, onPlan,
-  benefits, onBenefits, open, onToggle,
-  preview,          // { cheapest, dearest, saving } in patient dollars, live
+  benefits, onBenefits, open, onToggle, preview,
 }) {
-  const [payerQuery, setPayerQuery] = useState('');
   const set = (k, v) => onBenefits({ ...benefits, [k]: v });
 
-  // Carriers that actually appear for this procedure, commonest first.
-  const brandOptions = useMemo(() => {
+  const carriers = useMemo(() => {
     const list = [...availableBrands.entries()].map(([name, n]) => ({ name, n }));
     list.sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
-    const q = payerQuery.trim().toLowerCase();
-    return q ? list.filter((p) => p.name.toLowerCase().includes(q)) : list;
-  }, [availableBrands, payerQuery]);
+    return list;
+  }, [availableBrands]);
 
   const planOptions = useMemo(() => {
     const list = [...availablePlans].map((i) => ({ i, name: plans[i] || '' })).filter((p) => p.name);
@@ -36,248 +63,199 @@ export default function InsurancePanel({
   }, [availablePlans, plans]);
 
   return (
-    <section className="rounded-[18px] bg-paper-2/70 border rule overflow-hidden">
+    <section className="rounded-[18px] bg-card border rule overflow-hidden">
       <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-paper-3/60 transition-colors"
+        type="button" onClick={onToggle} aria-expanded={open}
+        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left hover:bg-paper-2/60 transition-colors"
       >
-        <span>
-          <span className="t-label opacity-40 block">Step 2 — optional</span>
-          <span className="font-semibold tracking-[-0.016em] text-[1.0625rem] block mt-1">
-            Your insurance
+        <span className="min-w-0">
+          <span className="block text-[1.125rem] font-semibold tracking-[-0.018em]">
+            Add your insurance
           </span>
-          <span className="t-small opacity-60 block mt-0.5">
+          <span className="block t-small opacity-55 mt-1">
             {!brand
-              ? 'Optional. Adds your real negotiated rate and what you would pay.'
+              ? 'Optional. Uses your real negotiated rate and estimates what you would pay.'
               : `${brand}${planId != null && plans[planId] ? ` · ${plans[planId]}` : ''}`}
           </span>
         </span>
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8"
-             className={`shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
-          <path d="M4.5 7 9 11.5 13.5 7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <span className={`shrink-0 w-9 h-9 rounded-full grid place-items-center transition-colors
+                          ${open ? 'bg-ink text-paper' : 'bg-paper-2'}`}>
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2"
+               className={`transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
+            <path d="M4.5 7 9 11.5 13.5 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </button>
 
       {open && (
-        <div className="px-5 pb-5 border-t rule pt-5 space-y-6">
-          {/* ---------------------------------------------------- insurer */}
-          <div>
-            <label htmlFor="payer" className="t-label opacity-55 block mb-2">Who insures you</label>
-            <input
-              className="field mb-2"
-              placeholder="Type to filter, e.g. Anthem, Aetna, Cigna, Medicare"
-              value={payerQuery}
-              onChange={(e) => setPayerQuery(e.target.value)}
-            />
-            <select
-              id="payer"
-              className="field"
-              value={brand ?? ''}
-              onChange={(e) => onBrand(e.target.value === '' ? null : e.target.value)}
-            >
-              <option value="">Not selected — show all published prices</option>
-              {brandOptions.map((p) => (
-                <option key={p.name} value={p.name}>{p.name}</option>
-              ))}
-            </select>
-            <p className="t-small opacity-55 mt-2">
-              Hospitals spell insurers many different ways in their files. Picking a carrier here
-              matches every spelling of it, so you see all of that insurer's rates.
-            </p>
-          </div>
+        <div className="px-6 pb-6 border-t rule">
+          <Field
+            title="Who insures you"
+            explain={
+              <Explain term="Finding your insurer" label="Not sure?"
+                       where="The name printed on the front of your insurance card.">
+                Hospitals write insurer names their own way — “AETNA”, “Aetna - BoB”,
+                “AETNA MEDICARE [1003]”. Picking a carrier here matches every spelling of it,
+                so you see all of that insurer's rates rather than one file's version.
+              </Explain>
+            }
+          >
+            <CarrierPicker options={carriers} value={brand} onChange={onBrand} />
+          </Field>
 
-          {/* ------------------------------------------------------- plan */}
           {brand && planOptions.length > 0 && (
-            <div>
-              <label htmlFor="plan" className="t-label opacity-55 block mb-2">Which plan</label>
+            <Field title="Which plan" explain={<span className="t-small opacity-45">Optional</span>}>
               <select
-                id="plan" className="field"
+                className="field h-14 text-[1rem]"
                 value={planId ?? ''}
                 onChange={(e) => onPlan(e.target.value === '' ? null : +e.target.value)}
               >
-                <option value="">Any plan from this insurer</option>
+                <option value="">Any plan from {brand}</option>
                 {planOptions.map((p) => <option key={p.i} value={p.i}>{p.name}</option>)}
               </select>
-              <p className="t-small opacity-55 mt-2">
-                Your plan name is printed on your insurance card, usually under the insurer's logo.
+              <p className="t-small opacity-50 mt-2.5">
+                Your plan name is on your card, usually under the insurer's logo.
               </p>
-            </div>
+            </Field>
           )}
 
-          {/* --------------------------------------------------- benefits */}
-          <div className="pt-5 border-t rule">
-            <p className="font-semibold tracking-[-0.016em] text-[1.0625rem]">What your plan makes you pay</p>
-            <p className="t-small opacity-65 mt-1.5 mb-5">
-              Fill in what you know. Every box is optional, and each one has an explanation
-              if the word is unfamiliar. Nothing you type leaves your browser.
-            </p>
-
-            <div className="grid sm:grid-cols-2 gap-5">
-              <div>
-                <label htmlFor="ded" className="t-small font-medium">
-                  Yearly deductible
-                  <Explain
-                    term="Deductible"
-                    where="Your insurance card, or the Summary of Benefits and Coverage your insurer or employer sent you. Your insurer's website shows it under plan details."
-                  >
-                    The amount you pay yourself each year before your insurance starts paying
-                    its share. If your deductible is $2,000, you pay the first $2,000 of your
-                    care. Most plans reset it every January.
-                  </Explain>
-                </label>
-                <div className="mt-2"><MoneyInput id="ded" value={benefits.deductible} onChange={(v) => set('deductible', v)} placeholder="2,000" /></div>
-              </div>
-
-              <div>
-                <label htmlFor="dedmet" className="t-small font-medium">
-                  Already paid toward it
-                  <Explain
-                    term="Deductible met so far"
-                    where="Log in to your insurer's website and look for “deductible” on your plan summary. It updates as claims are processed."
-                  >
-                    How much of this year's deductible you have already paid. If you have had
-                    no care this year, this is zero.
-                  </Explain>
-                </label>
-                <div className="mt-2"><MoneyInput id="dedmet" value={benefits.deductibleMet} onChange={(v) => set('deductibleMet', v)} /></div>
-              </div>
-
-              <div>
-                <label htmlFor="coins" className="t-small font-medium">
-                  Coinsurance
-                  <Explain
-                    term="Coinsurance"
-                    where="Summary of Benefits and Coverage, usually written as “20% coinsurance” next to each service."
-                  >
-                    Your share of the bill after you have met your deductible, written as a
-                    percentage. At 20% coinsurance on a $1,000 procedure, you pay $200 and
-                    the plan pays $800.
-                  </Explain>
-                </label>
-                <div className="relative mt-2">
-                  <input
-                    id="coins" type="number" min="0" max="100" step="1"
-                    className="field pr-9 tnum"
-                    value={Math.round((benefits.coinsurance ?? 0) * 100)}
-                    onChange={(e) => set('coinsurance', Math.min(100, Math.max(0, +e.target.value || 0)) / 100)}
-                  />
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 opacity-45 pointer-events-none">%</span>
+          <Field
+            title="Your yearly deductible"
+            explain={
+              <Explain term="Deductible"
+                       where="Your insurance card, or the Summary of Benefits and Coverage your insurer or employer sent you.">
+                What you pay yourself each year before insurance starts paying its share. If your
+                deductible is $2,000, you pay the first $2,000 of your care. Most plans reset it
+                every January.
+              </Explain>
+            }
+          >
+            <ChoiceRow id="ded" value={benefits.deductible} onChange={(v) => set('deductible', v)} options={DEDUCTIBLES} />
+            {benefits.deductible > 0 && (
+              <div className="mt-4 flex items-center gap-3 flex-wrap">
+                <label htmlFor="dedmet" className="t-small opacity-65">Already paid toward it this year</label>
+                <div className="w-[9rem]">
+                  <MoneyInput id="dedmet" value={benefits.deductibleMet} onChange={(v) => set('deductibleMet', v)} />
                 </div>
               </div>
+            )}
+          </Field>
 
-              <div>
-                <label htmlFor="copay" className="t-small font-medium">
-                  Copay for this service
-                  <Explain
-                    term="Copay"
-                    where="Printed on the front of your insurance card, often as separate amounts for “office visit”, “specialist” and “emergency”."
-                  >
-                    A flat fee for a visit or service, like $40, no matter what the hospital
-                    charges. Where a plan uses a copay, it usually replaces coinsurance for
-                    that service. Leave this blank if your plan does not use one.
-                  </Explain>
-                </label>
-                <div className="mt-2">
+          <Field
+            title="Your coinsurance"
+            explain={
+              <Explain term="Coinsurance" where="Summary of Benefits and Coverage, listed next to each type of service.">
+                Your share of the bill after the deductible is met, as a percentage. At 20% on a
+                $1,000 procedure you pay $200 and the plan pays $800. This is why the hospital you
+                pick still matters after you have met your deductible.
+              </Explain>
+            }
+          >
+            <ChoiceRow id="coins" value={benefits.coinsurance} onChange={(v) => set('coinsurance', v)} options={COINSURANCE} suffix="%" />
+          </Field>
+
+          <Field
+            title="Your out-of-pocket maximum"
+            explain={
+              <Explain term="Out-of-pocket maximum" where="Summary of Benefits and Coverage, near the deductible.">
+                The most you can be made to pay in one year for covered, in-network care. Once you
+                reach it, the plan pays everything else it covers. This is the number that protects
+                you from a catastrophic bill.
+              </Explain>
+            }
+          >
+            <ChoiceRow id="oop" value={benefits.outOfPocketMax} onChange={(v) => set('outOfPocketMax', v)} options={OOP} />
+            {benefits.outOfPocketMax > 0 && (
+              <div className="mt-4 flex items-center gap-3 flex-wrap">
+                <label htmlFor="oopmet" className="t-small opacity-65">Already paid toward it this year</label>
+                <div className="w-[9rem]">
+                  <MoneyInput id="oopmet" value={benefits.outOfPocketMet} onChange={(v) => set('outOfPocketMet', v)} />
+                </div>
+              </div>
+            )}
+          </Field>
+
+          <Field
+            title="Anything else about your plan"
+            explain={
+              <Explain term="Copays and high-deductible plans" where="The front of your insurance card, and your plan documents.">
+                A copay is a flat fee for a visit, like $40, instead of a percentage. On a
+                high-deductible plan you pay the full negotiated price until the deductible is met,
+                even for services that would normally have a copay.
+              </Explain>
+            }
+          >
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox" className="w-4 h-4 accent-[var(--color-accent)]"
+                  checked={!benefits.copayWaivesDeductible}
+                  onChange={(e) => set('copayWaivesDeductible', !e.target.checked)}
+                />
+                <span className="text-[0.9375rem]">High-deductible health plan</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <label htmlFor="copay" className="text-[0.9375rem]">Flat copay</label>
+                <div className="w-[8.5rem]">
                   <MoneyInput id="copay" value={benefits.copay ?? 0} onChange={(v) => set('copay', v === 0 ? null : v)} placeholder="none" />
                 </div>
               </div>
+            </div>
+          </Field>
 
-              <div>
-                <label htmlFor="oop" className="t-small font-medium">
-                  Out-of-pocket maximum
-                  <Explain
-                    term="Out-of-pocket maximum"
-                    where="Summary of Benefits and Coverage, near the deductible. Your insurer's website shows how much of it you have used."
-                  >
-                    The most you can be made to pay in one year. Once you reach it, your plan
-                    pays everything else it covers for the rest of the year. This is the number
-                    that protects you from a catastrophic bill.
-                  </Explain>
-                </label>
-                <div className="mt-2"><MoneyInput id="oop" value={benefits.outOfPocketMax} onChange={(v) => set('outOfPocketMax', v)} placeholder="8,000" /></div>
+          {/* the answer, kept on screen while the form is filled in */}
+          {preview && (
+            <div className="mt-2 -mx-6 -mb-6 px-6 py-6 bg-ink text-paper">
+              <div className="flex items-baseline justify-between gap-4 flex-wrap">
+                <span className="t-label opacity-50">With these numbers, you would pay</span>
+                {preview.saving > 0 && (
+                  <span className="t-small" style={{ color: 'var(--color-accent-dk)' }}>
+                    choosing well saves {fmtUSD(preview.saving, { round: true })}
+                  </span>
+                )}
               </div>
-
-              <div>
-                <label htmlFor="oopmet" className="t-small font-medium">
-                  Already paid toward the maximum
-                  <Explain term="Out-of-pocket met so far" where="Your insurer's website, on the same page as your deductible.">
-                    Everything you have paid this year that counts toward the maximum, including
-                    what went to your deductible.
-                  </Explain>
-                </label>
-                <div className="mt-2"><MoneyInput id="oopmet" value={benefits.outOfPocketMet} onChange={(v) => set('outOfPocketMet', v)} /></div>
+              <div className="flex items-end gap-8 mt-4 flex-wrap">
+                <div>
+                  <div className="t-num text-[2.5rem]" style={{ color: 'var(--color-accent-dk)' }}>
+                    {fmtUSD(preview.cheapest, { round: true })}
+                  </div>
+                  <div className="t-small opacity-50 mt-1">at the cheapest hospital</div>
+                </div>
+                <div>
+                  <div className="t-num text-[1.5rem] opacity-70">{fmtUSD(preview.dearest, { round: true })}</div>
+                  <div className="t-small opacity-50 mt-1">at the dearest</div>
+                </div>
               </div>
             </div>
+          )}
 
-            {preview && (
-              <div className="mt-6 border-y rule py-5">
-                <div className="flex items-baseline justify-between gap-4 flex-wrap">
-                  <span className="t-label opacity-40">With these numbers, you would pay</span>
-                  {preview.saving > 0 && (
-                    <span className="t-small" style={{ color: 'var(--color-p1)' }}>
-                      choosing well saves {fmtUSD(preview.saving, { round: true })}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-baseline gap-3 mt-3 flex-wrap">
-                  <span className="t-num text-[2.25rem]" style={{ color: 'var(--color-p1)' }}>
-                    {fmtUSD(preview.cheapest, { round: true })}
-                  </span>
-                  <span className="t-small opacity-45">at the cheapest hospital in your search</span>
-                </div>
-                <div className="flex items-baseline gap-3 mt-1.5 flex-wrap">
-                  <span className="t-figure text-[1.125rem] opacity-60">
-                    {fmtUSD(preview.dearest, { round: true })}
-                  </span>
-                  <span className="t-small opacity-45">at the dearest</span>
-                </div>
-              </div>
-            )}
-
-            <label className="flex items-start gap-2.5 mt-5 cursor-pointer">
-              <input
-                type="checkbox" className="mt-1"
-                checked={!benefits.copayWaivesDeductible}
-                onChange={(e) => set('copayWaivesDeductible', !e.target.checked)}
-              />
-              <span className="t-small">
-                My plan is a high-deductible health plan
-                <Explain term="High-deductible health plan" where="Your plan documents. If you have a health savings account, you almost certainly have one.">
-                  On these plans you pay the full negotiated price until the deductible is met,
-                  even for services that would otherwise have a copay. Ticking this makes the
-                  estimate apply your deductible first.
-                </Explain>
-              </span>
-            </label>
-
-            <div className="mt-6 p-4 rounded-[12px] bg-card border rule">
-              <p className="t-small font-medium">Do not know these numbers?</p>
-              <p className="t-small opacity-75 mt-1.5">
-                Every plan must give you a Summary of Benefits and Coverage, a short standard
-                document listing your deductible, coinsurance, copays and out-of-pocket maximum.
-                Ask your employer's benefits contact, or download it from your insurer's website.
+          {!preview && (
+            <div className="mt-2 p-5 rounded-[14px] bg-paper-2">
+              <p className="text-[0.9375rem] font-semibold">Do not know these numbers?</p>
+              <p className="t-small opacity-70 mt-1.5 max-w-[64ch]">
+                Every plan must give you a Summary of Benefits and Coverage — a short standard
+                document listing your deductible, coinsurance, copays and out-of-pocket maximum on
+                the first page. Ask your employer's benefits contact, or download it from your
+                insurer's website.
               </p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                <Link to="/insurance" className="btn btn-ghost !py-1.5 !px-3 !text-[0.8125rem]">Read the plain-English guide</Link>
+              <div className="flex flex-wrap gap-2 mt-4">
+                <Link to="/insurance" className="btn btn-ink !py-2 !px-4 !text-[0.8125rem]">Plain-English guide</Link>
                 <a href="https://www.healthcare.gov/glossary/" target="_blank" rel="noopener noreferrer"
-                   className="btn btn-ghost !py-1.5 !px-3 !text-[0.8125rem]">
+                   className="btn btn-ghost !py-2 !px-4 !text-[0.8125rem]">
                   Healthcare.gov glossary
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                    <path d="M4 2h6v6M10 2 3 9" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                    <path d="M4 2h6v6M10 2 3 9" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </a>
               </div>
             </div>
+          )}
 
-            {benefits.outOfPocketMax > 0 && benefits.outOfPocketMax < benefits.deductible && (
-              <p className="t-small mt-4 px-3 py-2.5 rounded-[2px] bg-[#FDF3E7] border border-[#E8C9A0]">
-                Your out-of-pocket maximum is lower than your deductible. That is unusual — worth
-                double-checking both numbers on your plan documents.
-              </p>
-            )}
-          </div>
+          {benefits.outOfPocketMax > 0 && benefits.outOfPocketMax < benefits.deductible && (
+            <p className="t-small mt-4 px-4 py-3 rounded-[12px] bg-[var(--color-mid-tint)]">
+              Your out-of-pocket maximum is lower than your deductible. That is unusual — worth
+              checking both numbers on your plan documents.
+            </p>
+          )}
         </div>
       )}
     </section>
