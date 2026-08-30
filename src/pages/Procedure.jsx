@@ -35,6 +35,7 @@ export default function Procedure() {
   const [benefits, setBenefits] = useState(emptyBenefits);
   const [insOpen, setInsOpen] = useState(false);
   const [view, setView] = useState('list');     // list | chart
+  const [switching, setSwitching] = useState(false);   // procedure search open
   const [selected, setSelected] = useState(null);
   const [sort, setSort] = useState('price');
   const [showMap, setShowMap] = useState(true);
@@ -194,7 +195,7 @@ export default function Procedure() {
   return (
     <div className="pt-16">
       {/* ------------------------------------------------------------ header */}
-      <header className="border-b rule bg-paper">
+      <header className={`border-b rule bg-paper ${switching ? 'relative z-40' : ''}`}>
         <div className="max-w-[92rem] mx-auto px-5 sm:px-8 py-8 sm:py-10">
           <div className="flex flex-wrap items-center gap-2.5 mb-4">
             <span className="t-mono text-[0.6875rem] px-2.5 py-1 rounded-full bg-paper-3 tnum">
@@ -212,7 +213,32 @@ export default function Procedure() {
             )}
           </div>
 
-          <h1 className="t-title max-w-[36ch]">{data.desc || `Code ${code}`}</h1>
+          <div className="flex items-start justify-between gap-6 flex-wrap">
+            <h1 className="t-title max-w-[32ch]">{data.desc || `Code ${code}`}</h1>
+            <button
+              onClick={() => setSwitching((v) => !v)}
+              aria-expanded={switching}
+              className="btn btn-ghost shrink-0 !py-2 !px-4 !text-[0.8125rem]"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                <circle cx="9" cy="9" r="6.25" /><path d="m13.6 13.6 4 4" strokeLinecap="round" />
+              </svg>
+              {switching ? 'Close' : 'Change procedure'}
+            </button>
+          </div>
+
+          {/* Switching procedure here rather than sending people back to the
+              home page — comparing two procedures is a normal thing to want,
+              and a round trip loses the ZIP, radius and insurance already entered. */}
+          {switching && (
+            <div className="mt-5 max-w-2xl" style={{ animation: 'searchIn .35s cubic-bezier(.16,1,.3,1) both' }}>
+              <SearchBox autoFocus />
+              <p className="t-small opacity-45 mt-2.5">
+                Your ZIP, radius and insurance carry over.
+              </p>
+              <style>{`@keyframes searchIn { from { opacity:0; transform: translateY(-6px) } to { opacity:1; transform:none } }`}</style>
+            </div>
+          )}
 
           {cheapest && dearest && savings > 0 && (
             <p className="t-lede mt-5 max-w-[52ch] opacity-80">
@@ -228,7 +254,7 @@ export default function Procedure() {
       </header>
 
       {/* ----------------------------------------------------------- controls */}
-      <div className="sticky top-16 z-30 bg-paper/92 backdrop-blur-xl border-b rule no-print">
+      <div className={`sticky top-16 bg-paper/92 backdrop-blur-xl border-b rule no-print ${switching ? 'z-20' : 'z-30'}`}>
         <div className="max-w-[92rem] mx-auto px-5 sm:px-8 py-3 flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-2">
             <label htmlFor="zip" className="t-label opacity-50">Your ZIP</label>

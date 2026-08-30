@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useId } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { loadSearch, searchProcedures } from '../lib/data.js';
 import { fmtUSD } from '../lib/estimate.js';
 
@@ -24,6 +24,7 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
+  const loc = useLocation();
   const boxRef = useRef(null);
   const inputRef = useRef(null);
   const listId = useId();
@@ -50,7 +51,16 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
 
   useEffect(() => setActive(0), [q]);
 
-  const go = (row) => { if (row) nav(`/procedure/${encodeURIComponent(row.type)}/${encodeURIComponent(row.code)}`); };
+  // Carry the current ZIP and radius across, so switching procedure from the
+  // results page keeps the search you already set up — and the new URL stays
+  // shareable rather than silently relying on component state.
+  const go = (row) => {
+    if (!row) return;
+    const keep = new URLSearchParams(loc.search);
+    for (const k of [...keep.keys()]) if (!['zip', 'r'].includes(k)) keep.delete(k);
+    const qs = keep.toString();
+    nav(`/procedure/${encodeURIComponent(row.type)}/${encodeURIComponent(row.code)}${qs ? `?${qs}` : ''}`);
+  };
 
   const onKey = (e) => {
     if (!open || !results.length) {

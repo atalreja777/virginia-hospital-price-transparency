@@ -13,7 +13,8 @@ export default function Nav() {
   const { pathname } = useLocation();
   // Pages whose first screen is a dark panel need light nav type over it.
   // The landing is light now, so it is deliberately not in this list.
-  const onDark = ['/data', '/insurance', '/methodology'].includes(pathname)
+  const onDark = pathname === '/'
+              || ['/data', '/insurance', '/methodology'].includes(pathname)
               || pathname.startsWith('/hospital/');
 
   useEffect(() => {

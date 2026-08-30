@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import SearchBox from '../components/SearchBox.jsx';
 import Reveal from '../components/Reveal.jsx';
 import SpreadBar from '../components/SpreadBar.jsx';
-import Marquee from '../components/Marquee.jsx';
 import PriceDemo from '../components/PriceDemo.jsx';
 import VirginiaDots from '../components/VirginiaDots.jsx';
+import HeroField from '../components/HeroField.jsx';
 import { fmtUSD } from '../lib/estimate.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
@@ -22,41 +22,76 @@ export default function Landing() {
   const domain = top.length ? [Math.min(...top.map((b) => b.low)), Math.max(...top.map((b) => b.high))] : null;
   const ct = basket.find((b) => b.code === '70450');
 
-  const ticker = stats ? [
-    { value: stats.totals.hospitalsPublishing, label: 'hospitals compared' },
-    { value: stats.totals.prices.toLocaleString(), label: 'published prices' },
-    { value: stats.totals.procedures.toLocaleString(), label: 'procedures' },
-    { value: stats.totals.payers, label: 'insurance plan names' },
-    { value: `${stats.spread.medianRatio.toFixed(1)}×`, label: 'median price gap' },
-    { value: `${Math.round(stats.cash.share * 100)}%`, label: 'cash beats insured' },
-    { value: stats.spread.over10x.toLocaleString(), label: 'procedures vary 10× or more' },
-  ] : [];
-
   return (
     <>
       {/* ---------------------------------------------------------------- hero */}
-      <section className="bg-paper pt-28 sm:pt-32 pb-16 sm:pb-20">
-        <div className="max-w-[80rem] mx-auto px-5 sm:px-8">
-          <h1 className="t-hero max-w-[16ch]">
-            <Reveal mask delay={110}>Know what a</Reveal>
-            <Reveal mask delay={190}>hospital charges</Reveal>
-            <Reveal mask delay={270}>before you go.</Reveal>
+      <section className="on-dark relative min-h-[92svh] flex flex-col justify-end overflow-hidden">
+        <HeroField />
+
+        <div className="relative max-w-[80rem] mx-auto w-full px-5 sm:px-8 pt-32 pb-14 sm:pb-20">
+          <h1 className="t-hero max-w-[15ch]">
+            <Reveal mask delay={100}>Know what a</Reveal>
+            <Reveal mask delay={180}>hospital charges</Reveal>
+            <Reveal mask delay={260}>before you go.</Reveal>
           </h1>
 
-          <Reveal delay={420} className="mt-8 grid lg:grid-cols-[minmax(0,34rem)_minmax(0,30rem)] gap-8 lg:gap-14 lg:items-end">
-            <p className="t-lede opacity-70">
-              Search a procedure, set how far you will travel, and add your insurance.
-              You get the real negotiated price at each Virginia hospital and an estimate
-              of what you would actually pay — from the files hospitals are required by
-              law to publish, and almost nobody reads.
+          <Reveal delay={420} className="mt-9 grid lg:grid-cols-[minmax(0,30rem)_minmax(0,30rem)] gap-8 lg:gap-14 lg:items-end">
+            <p className="t-lede opacity-65">
+              Search a procedure, set how far you will travel, add your insurance.
+              You get the real negotiated price at each Virginia hospital and what
+              you would actually pay.
             </p>
             <div>
-              <SearchBox size="lg" />
-              <p className="t-small opacity-45 mt-2.5">
+              <SearchBox dark size="lg" />
+              <p className="t-small opacity-40 mt-2.5">
                 Try “MRI”, “colonoscopy”, or the code from your doctor's order.
               </p>
             </div>
           </Reveal>
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------- the problem, stated */}
+      <section className="on-dark border-t border-hair py-24 sm:py-32">
+        <div className="max-w-[80rem] mx-auto px-5 sm:px-8">
+          <Reveal>
+            <p className="t-display max-w-[24ch] font-normal">
+              For decades the price of American healthcare was settled in private,
+              between a hospital and an insurer, long before anyone got a bill.
+            </p>
+          </Reveal>
+
+          <div className="grid lg:grid-cols-[minmax(0,20rem)_1fr] gap-10 lg:gap-16 mt-16">
+            <Reveal delay={80}>
+              <p className="t-body opacity-60">
+                Since 2021 federal law has required every hospital to publish what it
+                charges and what each insurance plan has agreed to pay. The files exist.
+                They are enormous, inconsistently formatted, and almost nobody reads them.
+                This site reads them for Virginia.
+              </p>
+            </Reveal>
+
+            {/* the ledger: the figures, at a size that makes them the argument */}
+            <Reveal delay={140}>
+              <dl className="border-t border-hair">
+                {[
+                  [stats ? stats.totals.prices.toLocaleString() : '—', 'Published prices read from Virginia hospital files'],
+                  [stats ? stats.totals.hospitalsPublishing : '—', 'Hospitals with prices you can compare'],
+                  [stats ? `${stats.spread.medianRatio.toFixed(1)}×` : '—', 'Typical gap between the cheaper and dearer hospital for the same code'],
+                  [stats ? `${Math.round(stats.cash.share * 100)}%` : '—', 'Of the time, the cash price beats the insured price'],
+                ].map(([value, label], i) => (
+                  <div key={label} className="grid sm:grid-cols-[1fr_minmax(0,22ch)] gap-x-8 gap-y-1 items-baseline py-7 border-b border-hair">
+                    <div className="t-num text-[clamp(2.75rem,6vw,4.75rem)] font-normal tracking-[-0.05em]"
+                         style={{ animation: `figIn .8s cubic-bezier(.16,1,.3,1) ${i * 90}ms both` }}>
+                      {value}
+                    </div>
+                    <div className="t-small opacity-45 sm:text-right">{label}</div>
+                  </div>
+                ))}
+              </dl>
+              <style>{`@keyframes figIn { from { opacity:0; transform: translateY(14px) } to { opacity:1; transform:none } }`}</style>
+            </Reveal>
+          </div>
         </div>
       </section>
 
@@ -79,11 +114,6 @@ export default function Landing() {
           </Reveal>
           <Reveal delay={140}><PriceDemo /></Reveal>
         </div>
-      </section>
-
-      {/* -------------------------------------------------------------- ticker */}
-      <section className="bg-ink text-paper py-5 overflow-hidden">
-        {ticker.length > 0 && <Marquee items={ticker} />}
       </section>
 
       {/* -------------------------------------------------------- the argument */}
