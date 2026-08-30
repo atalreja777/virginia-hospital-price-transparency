@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+
+# Pipeline working files. The CSV export is regenerated from Postgres and the
+# gazetteer is re-downloaded; neither belongs in the repository.
+pipeline/raw/
+pipeline/*.log
+pipeline/zcta.zip
+pipeline/*_Gaz_zcta_national.txt

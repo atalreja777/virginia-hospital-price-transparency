@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>What Virginia Hospitals Charge</title>
+    <script>
+      // GitHub Pages has no server-side routing, so a deep link lands here.
+      // Remember where the visitor meant to go, then hand control to the app.
+      sessionStorage.redirect = location.href;
+      location.replace(location.pathname.split('/').slice(0, 2).join('/') + '/');
+    </script>
+  </head>
+  <body></body>
+</html>

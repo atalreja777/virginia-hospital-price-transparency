@@ -1,0 +1,15 @@
+{
+  "builtAt": "2026-08-30T18:05:47.028Z",
+  "state": "VA",
+  "scope": "Planned, schedulable care. Emergency visit codes (CPT 99281-99292) and ambulance (HCPCS A0xxx) excluded.",
+  "source": "Hospital machine-readable files published under 45 CFR Part 180",
+  "counts": {
+    "hospitals": 125,
+    "hospitalsWithPrices": null,
+    "codes": 17184,
+    "rates": 4959867,
+    "payers": 320,
+    "plans": 361,
+    "shards": 1919
+  }
+}

@@ -1,0 +1,332 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Design system
+
+   Derived from measuring award-winning editorial and data sites rather than
+   from defaults. Three findings drove every decision here:
+
+   1. Display type is set at weight 400-500, not 700-800. Bold huge type reads
+      as a default; light huge type reads as drawn.
+   2. Tracking tightens as size grows — about -0.055em at hero scale, easing to
+      0 by body size, and going positive for small uppercase labels.
+   3. Winners hold one accent and let a data scale carry the rest of the colour.
+
+   Structure is hairlines and flat blocks. Rounded cards with drop shadows are
+   the house style of every template, so there are none here.
+   ========================================================================== */
+
+@theme {
+  /* Ground and paper. Both carry a little warmth; pure grey reads clinical. */
+  --color-ink:        #0B0B0C;
+  --color-ink-2:      #141416;
+  --color-ink-3:      #1C1C1F;
+  --color-hair:       #2B2B2F;
+
+  --color-paper:      #F6F4EF;
+  --color-paper-2:    #EDEAE3;
+  --color-paper-3:    #E2DED4;
+  --color-rule:       #CFCABB;
+  --color-card:       #FFFDF9;
+
+  /* One accent. It is the hot end of the price scale, so colour stays coherent:
+     expensive and "look here" are the same signal. */
+  --color-accent:     #FF4A1C;
+  --color-accent-2:   #FF6B41;
+  --color-accent-ink: #FFFFFF;
+
+  /* Price scale, cheap to dear. Ordered by lightness as well as hue so it
+     survives colour-blindness and greyscale printing. */
+  --color-p1: #0F7B72;
+  --color-p2: #4F9A4A;
+  --color-p3: #C69214;
+  --color-p4: #E2692A;
+  --color-p5: #B62419;
+
+  --font-display: "Bricolage Grotesque", "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-body:    "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif:   "Instrument Serif", ui-serif, Georgia, serif;
+  --font-mono:    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-q:  cubic-bezier(0.76, 0, 0.24, 1);
+}
+
+@layer base {
+  * { -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-weight: 400;
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Every figure on this site is a quantity someone compares. Line them up. */
+  .tnum, table, input, .price, time, .t-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  ::selection { background: var(--color-accent); color: #fff; }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 1px;
+  }
+
+  @supports (scrollbar-width: thin) {
+    .scroll-thin { scrollbar-width: thin; scrollbar-color: var(--color-rule) transparent; }
+    .on-dark .scroll-thin { scrollbar-color: var(--color-hair) transparent; }
+  }
+}
+
+@layer components {
+  /* ---- Type scale -------------------------------------------------------- */
+
+  .t-hero {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 96;
+    font-weight: 500;
+    font-size: clamp(3rem, 11vw, 10.5rem);
+    line-height: 0.86;
+    letter-spacing: -0.055em;
+  }
+  .t-display {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 72;
+    font-weight: 500;
+    font-size: clamp(2.125rem, 5.6vw, 4.75rem);
+    line-height: 0.94;
+    letter-spacing: -0.042em;
+  }
+  .t-title {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 32;
+    font-weight: 500;
+    font-size: clamp(1.5rem, 2.9vw, 2.375rem);
+    line-height: 1.04;
+    letter-spacing: -0.032em;
+  }
+  .t-lede {
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-size: clamp(1.0625rem, 1.5vw, 1.3125rem);
+    line-height: 1.44;
+    letter-spacing: -0.017em;
+  }
+  .t-body  { font-size: 1rem;     line-height: 1.58; letter-spacing: -0.008em; }
+  .t-small { font-size: 0.8125rem; line-height: 1.5;  letter-spacing: -0.002em; }
+
+  /* The eyebrow. Small uppercase needs POSITIVE tracking — the one place
+     letter-spacing should open up rather than close. */
+  .t-label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+
+  /* The editorial number. The thing a reader remembers. */
+  .t-stat {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 96;
+    font-weight: 600;
+    font-size: clamp(3.5rem, 9vw, 8.5rem);
+    line-height: 0.8;
+    letter-spacing: -0.055em;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-figure {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A headline quantity. Display face, tight, tabular so columns still line up. */
+  .t-num {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 72;
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    font-variant-numeric: tabular-nums;
+    line-height: 0.92;
+  }
+
+  .t-serif { font-family: var(--font-serif); font-weight: 400; letter-spacing: -0.015em; }
+  .t-mono  { font-family: var(--font-mono); }
+
+  /* ---- Surfaces ---------------------------------------------------------- */
+  .on-dark { background: var(--color-ink); color: var(--color-paper); }
+  .on-dark ::selection { background: var(--color-accent); color: #fff; }
+
+  /* A panel, not a card: square corners, one hairline, no shadow. */
+  .panel {
+    background: var(--color-card);
+    border: 1px solid var(--color-rule);
+    border-radius: 3px;
+  }
+  .on-dark .panel { background: var(--color-ink-2); border-color: var(--color-hair); }
+
+  .rule { border-color: var(--color-rule); }
+  .on-dark .rule { border-color: var(--color-hair); }
+
+  /* Ruled grid: the structure of a ledger, used instead of boxes. */
+  .ledger > * + * { border-top: 1px solid var(--color-rule); }
+  .on-dark .ledger > * + * { border-top-color: var(--color-hair); }
+
+  /* ---- Controls ---------------------------------------------------------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.6875rem 1.25rem;
+    border-radius: 2px;
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 0.875rem;
+    letter-spacing: -0.012em;
+    transition: background-color .2s var(--ease-out-expo), color .2s, border-color .2s, transform .18s var(--ease-out-expo);
+  }
+  .btn:active { transform: translateY(1px); }
+
+  .btn-accent { background: var(--color-accent); color: #fff; }
+  .btn-accent:hover { background: var(--color-accent-2); }
+
+  .btn-ink { background: var(--color-ink); color: var(--color-paper); }
+  .btn-ink:hover { background: var(--color-ink-3); }
+  .on-dark .btn-ink { background: var(--color-paper); color: var(--color-ink); }
+
+  .btn-ghost { border: 1px solid var(--color-rule); background: transparent; }
+  .btn-ghost:hover { background: var(--color-paper-2); border-color: var(--color-ink); }
+  .on-dark .btn-ghost { border-color: var(--color-hair); }
+  .on-dark .btn-ghost:hover { background: var(--color-ink-3); border-color: var(--color-paper); }
+
+  .field {
+    width: 100%;
+    background: var(--color-card);
+    border: 1px solid var(--color-rule);
+    border-radius: 2px;
+    padding: 0.6875rem 0.875rem;
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-ink);
+    box-shadow: 0 0 0 3px rgb(255 74 28 / 0.18);
+  }
+
+  /* A filter chip: square, hairline, inverts when on. */
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    background: transparent;
+    transition: all .15s ease;
+  }
+  .chip:hover:not(:disabled) { border-color: var(--color-ink); }
+  .chip:disabled { opacity: .38; cursor: not-allowed; }
+  .chip[data-on="true"] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+
+  /* ---- Motion ------------------------------------------------------------ */
+  .reveal {
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity .8s var(--ease-out-expo), transform .8s var(--ease-out-expo);
+    transition-delay: var(--d, 0ms);
+  }
+
+  /* Type that wipes up from a mask, one line at a time. */
+  .line-mask { overflow: hidden; display: block; }
+  .line-mask > span {
+    display: block;
+    transform: translateY(102%);
+    transition: transform 1s var(--ease-out-expo);
+    transition-delay: var(--d, 0ms);
+  }
+  .line-mask[data-shown="true"] > span { transform: none; }
+
+  /* An underline that draws itself, for links inside prose. */
+  .link-draw {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size .4s var(--ease-out-expo);
+    text-decoration: none;
+    padding-bottom: 1px;
+  }
+  .link-draw:hover { background-size: 100% 1px; }
+
+  /* A row that shifts a hair on hover — enough to feel alive, not enough to jump. */
+  .row-hover { transition: background-color .18s ease, padding-left .28s var(--ease-out-expo); }
+  .row-hover:hover { background: var(--color-paper-2); padding-left: 0.5rem; }
+  .on-dark .row-hover:hover { background: var(--color-ink-2); }
+
+  .bar-grow { transform-origin: left center; animation: bar-grow .9s var(--ease-out-expo) both; }
+  @keyframes bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  .shimmer {
+    background: linear-gradient(90deg, var(--color-paper-2) 25%, var(--color-paper-3) 37%, var(--color-paper-2) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.3s ease infinite;
+  }
+  @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+  /* Marquee: a running ticker of figures, borrowed from editorial sites.
+     Duplicated content makes the loop seamless; paused on hover so it can be read. */
+  .marquee { display: flex; overflow: hidden; user-select: none; gap: 0; }
+  .marquee__track {
+    display: flex; flex-shrink: 0; align-items: center; gap: 3rem;
+    padding-right: 3rem;
+    animation: marquee var(--speed, 46s) linear infinite;
+  }
+  .marquee:hover .marquee__track { animation-play-state: paused; }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+}
+
+/* People reach this tool worried about a bill. Never force motion on them. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+  .line-mask > span { transform: none; }
+  .marquee__track { animation: none; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; color: #000; }
+  .on-dark { background: #fff !important; color: #000 !important; }
+}
+
+/* MapLibre chrome, brought in line with the rest of the page. */
+.maplibregl-ctrl-attrib { font-size: 10px; opacity: .7; font-family: var(--font-mono); }
+.maplibregl-ctrl-group { border-radius: 2px !important; border: 1px solid var(--color-rule) !important; box-shadow: none !important; }
+.maplibregl-ctrl-group button { border-radius: 0 !important; }
+.maplibregl-popup-content { padding: 0; border-radius: 2px; overflow: hidden; box-shadow: 0 10px 34px rgb(0 0 0 / .2); }
+.maplibregl-popup-tip { display: none; }
+
+/* Revealed state lives outside @layer so Tailwind opacity utilities cannot
+   override it and strand an element part-way through its own animation. */
+.reveal[data-shown="true"] { opacity: 1; transform: none; }
+.line-mask[data-shown="true"] > span { transform: none; }
+/* Last-resort guarantee: if scripting is off, nothing is ever hidden. */
+.no-js .reveal { opacity: 1 !important; transform: none !important; }
+.no-js .line-mask > span { transform: none !important; }
