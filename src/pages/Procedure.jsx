@@ -126,6 +126,16 @@ export default function Procedure() {
   const savings = cheapest && dearest ? dearest.median - cheapest.median : 0;
 
   const est = (cents) => estimate(cents, benefits);
+
+  /* The list and the map must colour a hospital the same way, or the two stop
+     reading as one view. Both use this band, over the current result set. */
+  const priceBand = (price) => {
+    if (price == null || !priced.length) return 2;
+    const lo = Math.min(...priced.map((r) => r.median));
+    const hi = Math.max(...priced.map((r) => r.median));
+    if (hi === lo) return 2;
+    return Math.min(4, Math.max(0, Math.floor(((price - lo) / (hi - lo)) * 5)));
+  };
   const usingBenefits = benefits.deductible > 0 || benefits.copay != null || benefits.outOfPocketMax > 0;
 
   if (error === 'notfound') {
@@ -259,11 +269,13 @@ export default function Procedure() {
               </div>
             </div>
           ) : (
-            <ul className="space-y-2.5">
-              {rows.map((r) => (
+            <ul className="ledger border-y rule">
+              {rows.map((r, i) => (
                 <HospitalRow
                   key={r.ccn || r.hIdx}
                   row={r}
+                  rank={i + 1}
+                  band={priceBand(r.median)}
                   cheapest={cheapest?.ccn === r.ccn}
                   selected={selected === r.ccn}
                   onSelect={() => setSelected(selected === r.ccn ? null : r.ccn)}
