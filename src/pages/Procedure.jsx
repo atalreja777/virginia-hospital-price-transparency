@@ -6,7 +6,9 @@ import {
 } from '../lib/data.js';
 import { estimate, emptyBenefits, fmtUSD } from '../lib/estimate.js';
 import { withDistance, zipToPoint, isValidZip, approxRoadMiles } from '../lib/geo.js';
-import InsurancePanel from '../components/InsurancePanel.jsx';
+import InsuranceWizard from '../components/InsuranceWizard.jsx';
+import InsuranceCue from '../components/InsuranceCue.jsx';
+import PriceDistanceChart from '../components/PriceDistanceChart.jsx';
 import HospitalRow from '../components/HospitalRow.jsx';
 import Loading from '../components/Loading.jsx';
 import SearchBox from '../components/SearchBox.jsx';
@@ -32,6 +34,7 @@ export default function Procedure() {
   const [planId, setPlanId] = useState(null);
   const [benefits, setBenefits] = useState(emptyBenefits);
   const [insOpen, setInsOpen] = useState(false);
+  const [view, setView] = useState('list');     // list | chart
   const [selected, setSelected] = useState(null);
   const [sort, setSort] = useState('price');
   const [showMap, setShowMap] = useState(true);
@@ -122,6 +125,12 @@ export default function Procedure() {
     return out;
   }, [data, hospitals, brandMembers, planId, origin, radius, sort]);
 
+  const carriers = useMemo(() => {
+    const list = [...availableBrands.entries()].map(([name, n]) => ({ name, n }));
+    list.sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+    return list;
+  }, [availableBrands]);
+
   const priced = rows.filter((r) => r.median != null);
   // How many the radius is hiding — shown as a one-click way to widen.
   const hiddenByRadius = Math.max(0, (rows.beforeRadius ?? priced.length) - priced.length);
@@ -146,6 +155,16 @@ export default function Procedure() {
     return Math.min(4, Math.max(0, Math.floor(((price - lo) / (hi - lo)) * 5)));
   };
   const usingBenefits = benefits.deductible > 0 || benefits.copay != null || benefits.outOfPocketMax > 0;
+
+  /* What the entered benefits mean in money, shown in the wizard's last step
+     and in the corner card. Null until there is enough to say anything. */
+  const previewNumbers = usingBenefits && cheapest && dearest
+    ? {
+        cheapest: est(cheapest.median).patient,
+        dearest: est(dearest.median).patient,
+        saving: est(dearest.median).patient - est(cheapest.median).patient,
+      }
+    : null;
 
   if (error === 'notfound') {
     return (
@@ -259,24 +278,37 @@ export default function Procedure() {
       <div className="max-w-[92rem] mx-auto px-5 sm:px-8 py-8 grid lg:grid-cols-[1fr_minmax(0,29rem)] gap-8">
         {/* list */}
         <div className="order-2 lg:order-1 min-w-0">
-          <div className="mb-5">
-            <InsurancePanel
-              payers={dicts.payers} plans={dicts.plans}
-              availableBrands={availableBrands} availablePlans={availablePlans}
-              brand={brand} planId={planId}
-              onBrand={(v) => { setBrand(v); setPlanId(null); }}
-              onPlan={setPlanId}
-              benefits={benefits} onBenefits={setBenefits}
-              open={insOpen} onToggle={() => setInsOpen((v) => !v)}
-              preview={usingBenefits && cheapest && dearest ? {
-                cheapest: est(cheapest.median).patient,
-                dearest: est(dearest.median).patient,
-                saving: est(dearest.median).patient - est(cheapest.median).patient,
-              } : null}
-            />
+          <div className="flex items-center justify-between gap-4 mb-5 flex-wrap">
+            <div className="inline-flex p-1 rounded-full bg-paper-2 border rule">
+              {[['list', 'List'], ['chart', 'Price vs distance']].map(([k, label]) => (
+                <button
+                  key={k} onClick={() => setView(k)} aria-pressed={view === k}
+                  disabled={k === 'chart' && !origin}
+                  title={k === 'chart' && !origin ? 'Enter your ZIP to compare by distance' : undefined}
+                  className={`px-4 h-9 rounded-full text-[0.8125rem] font-semibold transition-all duration-300
+                    ${view === k ? 'bg-ink text-paper shadow-[0_1px_3px_rgb(20_18_15/0.25)]' : 'opacity-55 hover:opacity-100 disabled:opacity-25'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setInsOpen(true)} className="btn btn-ghost !py-2 !px-4 !text-[0.8125rem]">
+              {brand || usingBenefits ? 'Change insurance' : 'Add your insurance'}
+            </button>
           </div>
 
-          {rows.length === 0 ? (
+          {view === 'chart' && rows.length > 0 && (
+            <div className="mb-5">
+              <PriceDistanceChart
+                rows={priced}
+                selected={selected}
+                onSelect={(ccn) => { setSelected(ccn); setView('list'); }}
+                estimateFn={usingBenefits ? est : null}
+              />
+            </div>
+          )}
+
+          {view === 'list' && rows.length === 0 ? (
             <div className="panel p-8 text-center">
               <p className="t-title !text-[1.25rem]">No hospitals match.</p>
               <p className="t-body mt-3 opacity-70 max-w-[44ch] mx-auto">
@@ -289,7 +321,7 @@ export default function Procedure() {
                 {brand && <button className="btn btn-ghost" onClick={() => { setBrand(null); setPlanId(null); }}>Clear insurer</button>}
               </div>
             </div>
-          ) : (
+          ) : view === 'list' ? (
             <ul className="ledger border-y rule">
               {rows.map((r, i) => (
                 <HospitalRow
@@ -309,7 +341,7 @@ export default function Procedure() {
                 />
               ))}
             </ul>
-          )}
+          ) : null}
 
           <p className="t-small opacity-55 mt-7 max-w-[62ch]">
             Prices come from each hospital's own machine-readable file. They are estimates for
@@ -318,6 +350,22 @@ export default function Procedure() {
             hospital and your insurer before you schedule anything.
           </p>
         </div>
+
+        {/* insurance, as a guided flow rather than a wall of fields */}
+        <InsuranceWizard
+          open={insOpen} onClose={() => setInsOpen(false)}
+          carriers={carriers} plans={dicts.plans} availablePlans={availablePlans}
+          brand={brand} planId={planId}
+          onBrand={(v) => { setBrand(v); setPlanId(null); }} onPlan={setPlanId}
+          benefits={benefits} onBenefits={setBenefits}
+          preview={previewNumbers}
+        />
+        <InsuranceCue
+          onOpen={() => setInsOpen(true)}
+          brand={brand}
+          hasBenefits={usingBenefits}
+          preview={previewNumbers}
+        />
 
         {/* map */}
         <div className={`order-1 lg:order-2 ${showMap ? '' : 'hidden lg:block'}`}>
