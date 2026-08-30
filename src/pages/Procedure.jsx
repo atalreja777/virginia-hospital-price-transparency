@@ -133,6 +133,11 @@ export default function Procedure() {
 
   /* The list and the map must colour a hospital the same way, or the two stop
      reading as one view. Both use this band, over the current result set. */
+  // The price range of everything currently on screen, shared by every row's
+  // track so the bars are comparable to each other.
+  const domainLow = priced.length ? Math.min(...priced.map((r) => r.low ?? r.median)) : null;
+  const domainHigh = priced.length ? Math.max(...priced.map((r) => r.high ?? r.median)) : null;
+
   const priceBand = (price) => {
     if (price == null || !priced.length) return 2;
     const lo = Math.min(...priced.map((r) => r.median));
@@ -292,6 +297,9 @@ export default function Procedure() {
                   row={r}
                   rank={i + 1}
                   band={priceBand(r.median)}
+                  domainLow={domainLow}
+                  domainHigh={domainHigh}
+                  dearest={dearest?.median ?? null}
                   cheapest={cheapest?.ccn === r.ccn}
                   selected={selected === r.ccn}
                   onSelect={() => setSelected(selected === r.ccn ? null : r.ccn)}

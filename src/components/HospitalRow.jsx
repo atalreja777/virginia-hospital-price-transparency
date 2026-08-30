@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { fmtUSD } from '../lib/estimate.js';
 import { approxRoadMiles } from '../lib/geo.js';
+import PriceTrack from './PriceTrack.jsx';
+import RateSpark from './RateSpark.jsx';
 
 const titleCase = (s) => (s || '').toLowerCase().replace(/\b([a-z])/g, (c) => c.toUpperCase()).replace(/\bOf\b/g, 'of');
 
@@ -13,10 +15,15 @@ const SCALE = ['#0F7B72', '#4F9A4A', '#C69214', '#E2692A', '#B62419'];
  * with a colour bar on the left that matches the map exactly, so a pin and a
  * row are obviously the same hospital. Detail stays folded away until asked for.
  */
-export default function HospitalRow({ row, rank, band, cheapest, selected, onSelect, dicts, estimateFn, showDistance }) {
+export default function HospitalRow({
+  row, rank, band, cheapest, selected, onSelect, dicts, estimateFn, showDistance,
+  domainLow, domainHigh, dearest,
+}) {
   const est = estimateFn && row.median != null ? estimateFn(row.median) : null;
   const spread = row.low != null && row.high != null && row.high > row.low;
   const colour = SCALE[band ?? 2];
+  // What choosing this hospital saves against the most expensive one found.
+  const saving = dearest != null && row.median != null ? dearest - row.median : 0;
 
   return (
     <li className={`relative transition-colors ${selected ? 'bg-paper-2' : 'hover:bg-paper-2/70'}`}>
@@ -62,8 +69,23 @@ export default function HospitalRow({ row, rank, band, cheapest, selected, onSel
           </span>
         </div>
 
+        {row.median != null && (
+          <div className="mt-3.5 ml-9 sm:ml-11 grid grid-cols-[1fr_auto] items-center gap-x-5">
+            <PriceTrack
+              low={row.low} median={row.median} high={row.high}
+              domainLow={domainLow} domainHigh={domainHigh}
+              band={band} delay={rank * 45}
+            />
+            <span className="t-small tabular-nums whitespace-nowrap">
+              {saving > 0
+                ? <span style={{ color: SCALE[0] }}>save {fmtUSD(saving, { round: true })}</span>
+                : <span className="opacity-35">most expensive here</span>}
+            </span>
+          </div>
+        )}
+
         {est && (
-          <div className="mt-4 ml-9 sm:ml-11 pt-3.5 border-t rule flex flex-wrap items-baseline gap-x-7 gap-y-2">
+          <div className="mt-3.5 ml-9 sm:ml-11 pt-3.5 border-t rule flex flex-wrap items-baseline gap-x-7 gap-y-2">
             <span className="t-label opacity-40">You pay</span>
             <span className="t-num text-[1.375rem]" style={{ color: SCALE[0] }}>{fmtUSD(est.patient)}</span>
             <span className="t-small opacity-55">
@@ -78,20 +100,32 @@ export default function HospitalRow({ row, rank, band, cheapest, selected, onSel
 
       {selected && (
         <div className="pl-5 pr-4 sm:pl-11 sm:pr-5 pb-6 -mt-1">
-          <div className="grid grid-cols-2 sm:grid-cols-4 py-5 border-t rule">
-            {[
-              ['Gross charge', row.gross, 'list price'],
-              ['Cash price', row.cash, 'if you self-pay'],
-              ['Lowest negotiated', row.minNegotiated, 'any plan'],
-              ['Highest negotiated', row.maxNegotiated, 'any plan'],
-            ].map(([label, v, help], i) => (
-              <div key={label} className={i > 0 ? 'sm:pl-6 sm:border-l rule' : ''}>
-                <div className="t-figure text-[1.0625rem]">{fmtUSD(v, { round: true })}</div>
-                <div className="t-small opacity-55 mt-1">{label}</div>
-                <div className="t-small opacity-35">{help}</div>
+          {(() => {
+            const items = [
+              ['Gross charge', row.gross, 'list price', '#8A8578'],
+              ['Cash price', row.cash, 'if you self-pay', SCALE[1]],
+              ['Lowest negotiated', row.minNegotiated, 'any plan', SCALE[0]],
+              ['Highest negotiated', row.maxNegotiated, 'any plan', SCALE[4]],
+            ];
+            const top = Math.max(...items.map(([, v]) => v ?? 0), 1);
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-5 py-5 border-t rule">
+                {items.map(([label, v, help, c]) => (
+                  <div key={label}>
+                    <div className="t-figure text-[1.0625rem]">{fmtUSD(v, { round: true })}</div>
+                    {/* the same figures, drawn to scale — the gap between the list
+                        price and the negotiated rate is the story here */}
+                    <div className="h-[5px] rounded-full bg-paper-3 mt-2 overflow-hidden">
+                      <div className="h-full rounded-full bar-grow"
+                           style={{ width: `${v == null ? 0 : Math.max(2, (v / top) * 100)}%`, background: c }} />
+                    </div>
+                    <div className="t-small opacity-55 mt-1.5">{label}</div>
+                    <div className="t-small opacity-35">{help}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })()}
 
           {row.cash != null && row.median != null && row.cash < row.median && (
             <p className="t-small mt-4 px-4 py-3 rounded-[12px]" style={{ background: 'var(--color-low-tint)', color: 'var(--color-ink)' }}>
@@ -113,6 +147,22 @@ export default function HospitalRow({ row, rank, band, cheapest, selected, onSel
                 <div className="flex justify-between opacity-60"><dt>Your plan pays</dt><dd className="t-figure">{fmtUSD(est.plan)}</dd></div>
               </dl>
               {est.notes.map((n, i) => <p key={i} className="t-small opacity-60 mt-2.5 max-w-[56ch]">{n}</p>)}
+            </div>
+          )}
+
+          {row.prices?.length >= 3 && (
+            <div className="mt-5 pt-5 border-t rule">
+              <div className="flex items-baseline justify-between gap-4 mb-1">
+                <span className="t-label opacity-40">Every plan's rate here</span>
+                <span className="t-small opacity-45 tabular-nums">
+                  {row.prices.length} rates, {fmtUSD(row.prices[0], { round: true })} to {fmtUSD(row.prices[row.prices.length - 1], { round: true })}
+                </span>
+              </div>
+              <RateSpark prices={row.prices} colour={colour} />
+              <p className="t-small opacity-45 -mt-1">
+                Each tick is one insurance plan. Bunched together means this hospital charges
+                everyone about the same; spread out means what you pay depends on your insurer.
+              </p>
             </div>
           )}
 
