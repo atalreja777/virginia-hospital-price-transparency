@@ -16,6 +16,7 @@ export default function InsurancePanel({
   payers, plans, availableBrands, availablePlans,
   brand, planId, onBrand, onPlan,
   benefits, onBenefits, open, onToggle,
+  preview,          // { cheapest, dearest, saving } in patient dollars, live
 }) {
   const [payerQuery, setPayerQuery] = useState('');
   const set = (k, v) => onBenefits({ ...benefits, [k]: v });
@@ -209,6 +210,31 @@ export default function InsurancePanel({
                 <div className="mt-2"><MoneyInput id="oopmet" value={benefits.outOfPocketMet} onChange={(v) => set('outOfPocketMet', v)} /></div>
               </div>
             </div>
+
+            {preview && (
+              <div className="mt-6 border-y rule py-5">
+                <div className="flex items-baseline justify-between gap-4 flex-wrap">
+                  <span className="t-label opacity-40">With these numbers, you would pay</span>
+                  {preview.saving > 0 && (
+                    <span className="t-small" style={{ color: 'var(--color-p1)' }}>
+                      choosing well saves {fmtUSD(preview.saving, { round: true })}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-baseline gap-3 mt-3 flex-wrap">
+                  <span className="t-num text-[2.25rem]" style={{ color: 'var(--color-p1)' }}>
+                    {fmtUSD(preview.cheapest, { round: true })}
+                  </span>
+                  <span className="t-small opacity-45">at the cheapest hospital in your search</span>
+                </div>
+                <div className="flex items-baseline gap-3 mt-1.5 flex-wrap">
+                  <span className="t-figure text-[1.125rem] opacity-60">
+                    {fmtUSD(preview.dearest, { round: true })}
+                  </span>
+                  <span className="t-small opacity-45">at the dearest</span>
+                </div>
+              </div>
+            )}
 
             <label className="flex items-start gap-2.5 mt-5 cursor-pointer">
               <input

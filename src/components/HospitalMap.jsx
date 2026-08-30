@@ -21,30 +21,14 @@ import { fmtUSD } from '../lib/estimate.js';
  *     break because of a billing failure, which matters for a public tool.
  */
 
-const STYLE = {
-  version: 8,
-  sources: {
-    base: {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}@2x.png',
-      ],
-      tileSize: 256,
-      attribution: '© OpenStreetMap · © CARTO',
-    },
-    labels: {
-      type: 'raster',
-      tiles: ['https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png'],
-      tileSize: 256,
-    },
-  },
-  layers: [
-    { id: 'base', type: 'raster', source: 'base', paint: { 'raster-saturation': -0.6, 'raster-opacity': 0.95 } },
-    { id: 'labels', type: 'raster', source: 'labels', paint: { 'raster-opacity': 0.6 } },
-  ],
-};
+/**
+ * OpenFreeMap: free, no API key, no usage limits, no billing account that can
+ * lapse. CARTO's basemaps now watermark unkeyed requests, and a public tool
+ * should not depend on a key that can be revoked or metered. Positron is a
+ * deliberately quiet style, which is what we want — every bit of colour on
+ * screen should belong to the price data.
+ */
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
 const SCALE = ['#0F7B72', '#4F9A4A', '#C69214', '#E2692A', '#B62419'];
 const bandFor = (price, lo, hi) => {
@@ -79,7 +63,7 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
     try {
       m = new maplibregl.Map({
         container: el.current,
-        style: STYLE,
+        style: STYLE_URL,
         center: [VA_CENTER.lon, VA_CENTER.lat],
         zoom: 6.1,
         minZoom: 5,
@@ -95,7 +79,29 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     m.on('moveend', () => setZoom(m.getZoom() + Math.random() * 1e-9));
     m.on('error', (e) => { if (e?.error?.status === 0) setFailed(true); });
-    return () => { m.remove(); map.current = null; };
+
+    // MapLibre sizes its drawing buffer once, from whatever the container
+    // measured at construction. Inside a lazy-loaded route, a CSS grid, or a
+    // panel that starts hidden on mobile, that measurement is often near zero —
+    // and the map then renders into a sliver of a canvas for the rest of its
+    // life while markers still position correctly, so it looks blank rather
+    // than broken. Watch the box and resize whenever it actually changes.
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      let w = 0, h = 0;
+      ro = new ResizeObserver(([entry]) => {
+        const { width, height } = entry.contentRect;
+        if (width < 2 || height < 2) return;
+        if (Math.abs(width - w) < 1 && Math.abs(height - h) < 1) return;
+        w = width; h = height;
+        m.resize();
+      });
+      ro.observe(el.current);
+    }
+    // Belt and braces for the first paint, before any resize fires.
+    const kick = setTimeout(() => m.resize(), 120);
+
+    return () => { clearTimeout(kick); ro?.disconnect(); m.remove(); map.current = null; };
   }, []);
 
   /* radius ring */
@@ -215,7 +221,7 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
 
   return (
     <div className="relative w-full h-full">
-      <div ref={el} className="w-full h-full bg-paper-2" role="application" aria-label="Map of hospitals with published prices" />
+      <div ref={el} className="w-full h-full bg-paper-2 [&_canvas]:saturate-[.55]" role="application" aria-label="Map of hospitals with published prices" />
       <div className="absolute left-3 bottom-3 bg-card/95 backdrop-blur border rule rounded-[2px] px-3 py-2 pointer-events-none">
         <div className="t-label opacity-45 mb-1.5">Price</div>
         <div className="flex items-center gap-1">

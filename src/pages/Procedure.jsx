@@ -252,6 +252,11 @@ export default function Procedure() {
               onPlan={setPlanId}
               benefits={benefits} onBenefits={setBenefits}
               open={insOpen} onToggle={() => setInsOpen((v) => !v)}
+              preview={usingBenefits && cheapest && dearest ? {
+                cheapest: est(cheapest.median).patient,
+                dearest: est(dearest.median).patient,
+                saving: est(dearest.median).patient - est(cheapest.median).patient,
+              } : null}
             />
           </div>
 
