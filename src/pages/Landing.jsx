@@ -5,6 +5,7 @@ import Reveal from '../components/Reveal.jsx';
 import SpreadBar from '../components/SpreadBar.jsx';
 import Marquee from '../components/Marquee.jsx';
 import PriceDemo from '../components/PriceDemo.jsx';
+import VirginiaDots from '../components/VirginiaDots.jsx';
 import { fmtUSD } from '../lib/estimate.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
@@ -166,6 +167,29 @@ export default function Landing() {
           </div>
         </section>
       )}
+
+      {/* ------------------------------------------------------------- coverage */}
+      <section id="coverage" className="bg-paper py-24 sm:py-32 scroll-mt-20">
+        <div className="max-w-[80rem] mx-auto px-5 sm:px-8">
+          <div className="grid lg:grid-cols-[minmax(0,26rem)_1fr] gap-10 lg:gap-16 items-center">
+            <div>
+              <Reveal as="p" className="t-label opacity-40">Every hospital in the state</Reveal>
+              <Reveal as="h2" className="t-display mt-5" delay={60}>
+                Who actually<br />publishes.
+              </Reveal>
+              <Reveal delay={120}>
+                <p className="t-body mt-6 opacity-70 max-w-[40ch]">
+                  The rule has applied since 2021. Each dot is one Virginia hospital, placed
+                  where it really is. Filled dots publish prices this site could read and use.
+                  Hollow ones do not.
+                </p>
+                <Link to="/data" className="btn btn-ghost mt-7">See what is missing</Link>
+              </Reveal>
+            </div>
+            <Reveal delay={100}><VirginiaDots /></Reveal>
+          </div>
+        </div>
+      </section>
 
       {/* --------------------------------------------------------- how it works */}
       <section className="bg-paper py-24 sm:py-32">
