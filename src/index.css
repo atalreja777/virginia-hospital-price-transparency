@@ -310,6 +310,37 @@
   .row-hover:hover { background: var(--color-paper-2); padding-left: 0.5rem; }
   .on-dark .row-hover:hover { background: var(--color-ink-2); }
 
+  /* The spread column: bars, their decade gridlines and the tick header all
+     measure against the same track, so the width reserved for the multiple on
+     the right is a variable rather than a number repeated in three places. */
+  .spread-col { --ratio-col: 3.25rem; --ratio-gap: 1rem; }
+  @media (min-width: 640px) { .spread-col { --ratio-col: 5.5rem; --ratio-gap: 1.75rem; } }
+
+  .spread-track { left: 0; right: calc(var(--ratio-col) + var(--ratio-gap)); }
+
+  /* Smaller on a narrow track, where forty-odd hospitals would otherwise merge
+     into one solid stripe and stop reading as separate places. */
+  .spread-dot { width: 8px; height: 8px; }
+  @media (min-width: 640px) { .spread-dot { width: 10px; height: 10px; } }
+
+  /* Hovering a row underlines its name rather than filling the row, which would
+     paint over the gridlines the column is read against. */
+  .spread-link:hover .spread-name {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+  .spread-row {
+    grid-template-columns: minmax(0, 1fr) var(--ratio-col);
+    column-gap: var(--ratio-gap);
+  }
+
+  /* The dots settle in together rather than one by one; 47 staggered marks per
+     row reads as noise, and there are ten rows of them. */
+  .dots-in { animation: dots-in .7s var(--ease-out-expo) both; }
+  @keyframes dots-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .dots-in { animation: none; } }
+
   .bar-grow { transform-origin: left center; animation: bar-grow .9s var(--ease-out-expo) both; }
   @keyframes bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 

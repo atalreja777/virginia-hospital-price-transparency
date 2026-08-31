@@ -14,19 +14,19 @@ and see what you would actually pay at each hospital.
 
 | | |
 |---|---|
-| Virginia hospitals with usable prices | 73 of 125 in the federal registry |
-| Individual published prices | 7,414,620 |
-| Schedulable procedures | 17,517 |
-| Distinct insurance plan names | 320 |
+| Virginia hospitals with usable prices | 76 of 125 in the federal registry |
+| Individual published prices | 7,596,663 |
+| Schedulable procedures | 17,810 |
+| Distinct insurers named | 377 |
 | Median price spread for the same code | 3.0× |
 
-A CT scan of the head costs **$110** at one Virginia hospital and **$2,145** at
+A CT scan of the head costs **$108** at one Virginia hospital and **$2,145** at
 another. A comprehensive metabolic panel ranges from **$11** to **$307**. A knee
 replacement runs **$12,527** to **$31,497**. Every one of those numbers is
 published by the hospitals themselves.
 
-Across the 15,333 procedures published by at least eight hospitals, **10,623 vary
-by 2× or more** and **1,816 vary by 10× or more**.
+Across the 16,064 procedures published by at least eight hospitals, **11,200 vary
+by 2× or more** and **1,953 vary by 10× or more**.
 
 In **41%** of cases where a hospital published both, its discounted cash price
 was *lower* than its median negotiated insured rate.
@@ -57,7 +57,7 @@ locally.
 - Prices of $0.01, exact zeros, strings of nines and values far outside a file's
   own stated range are flagged during loading and withheld rather than shown as
   real.
-- The 52 hospitals with no usable prices are **listed by name**, not quietly
+- The 49 hospitals with no usable prices are **listed by name**, not quietly
   dropped.
 - Distances are straight-line. Real driving is roughly a quarter further, and
   the site says so.

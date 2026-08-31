@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SearchBox from '../components/SearchBox.jsx';
 import Reveal from '../components/Reveal.jsx';
-import SpreadBar from '../components/SpreadBar.jsx';
+import SpreadBar, { decadeTicks } from '../components/SpreadBar.jsx';
 import PriceDemo from '../components/PriceDemo.jsx';
 import VirginiaDots from '../components/VirginiaDots.jsx';
 import HeroField from '../components/HeroField.jsx';
@@ -10,16 +10,33 @@ import { fmtUSD } from '../lib/estimate.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
 
+const dearest = (b) => (b.prices?.length ? b.prices[b.prices.length - 1] : b.high);
+
+// The same three questions people ask of the list on a procedure page: which
+// varies most, which is widely published, which costs the most to begin with.
+const SORTS = [
+  { key: 'gap', label: 'Biggest gap', cmp: (a, b) => b.ratio - a.ratio },
+  { key: 'hospitals', label: 'Most hospitals', cmp: (a, b) => b.hospitals - a.hospitals },
+  { key: 'price', label: 'Highest price', cmp: (a, b) => dearest(b) - dearest(a) },
+];
+
 export default function Landing() {
   const [stats, setStats] = useState(null);
+  const [sort, setSort] = useState('gap');
   useEffect(() => {
     fetch(`${BASE}data/stats.json`).then((r) => r.json()).then(setStats).catch(() => {});
   }, []);
 
   const basket = stats?.basket ?? [];
-  const top = basket.slice(0, 10);
+  const top = [...basket].sort(SORTS.find((s) => s.key === sort).cmp).slice(0, 10);
   // Shared log domain so every bar in the column is comparable.
-  const domain = top.length ? [Math.min(...top.map((b) => b.low)), Math.max(...top.map((b) => b.high))] : null;
+  // Every hospital is drawn, so the axis has to reach the real extremes rather
+  // than the 10th and 90th percentile the band is built from. It is measured
+  // over the whole basket, not the visible ten, so re-sorting reorders the rows
+  // without moving the scale under them.
+  const ends = basket.flatMap((b) => (b.prices?.length ? [b.prices[0], b.prices[b.prices.length - 1]] : [b.low, b.high]));
+  const domain = ends.length ? [Math.min(...ends), Math.max(...ends)] : null;
+  const ticks = decadeTicks(domain);
   const ct = basket.find((b) => b.code === '70450');
 
   return (
@@ -101,8 +118,7 @@ export default function Landing() {
           <Reveal delay={80}>
             <div className="flex items-end justify-between gap-6 flex-wrap mb-5">
               <div>
-                <p className="t-label opacity-40">See it working</p>
-                <h2 className="t-title mt-2.5 max-w-[24ch]">
+                <h2 className="t-title max-w-[24ch]">
                   Real prices, at real Virginia hospitals, right now.
                 </h2>
               </div>
@@ -121,19 +137,18 @@ export default function Landing() {
         <div className="max-w-[96rem] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-[minmax(0,24rem)_1fr] gap-14 lg:gap-24">
             <div className="lg:sticky lg:top-28 lg:self-start">
-              <Reveal as="p" className="t-label opacity-40">01 — The gap</Reveal>
-              <Reveal as="h2" className="t-display mt-6" delay={60}>
+              <Reveal as="h2" className="t-display" delay={60}>
                 Same procedure.<br />Same state.<br />
                 <span className="t-serif italic">Wildly</span> different price.
               </Reveal>
               <Reveal delay={130}>
                 <p className="t-body mt-7 opacity-70 max-w-[40ch]">
-                  Each bar runs from what the cheaper Virginia hospitals accept to what the
-                  dearer ones charge, for exactly the same billing code.
+                  Every dot is one Virginia hospital, placed at what it accepts for exactly
+                  the same billing code. Most cluster. A few do not.
                 </p>
                 <p className="t-small mt-5 opacity-50 max-w-[42ch]">
-                  Bars span the 10th to the 90th percentile hospital, so one mistyped row in
-                  one file cannot stretch them.
+                  The shaded band holds the middle 80% of hospitals and the multiple compares
+                  its two ends, so one mistyped row cannot stretch the number.
                 </p>
                 <Link to="/data" className="btn btn-ink mt-8">
                   All {stats ? stats.spread.comparableProcedures.toLocaleString() : ''} procedures
@@ -144,18 +159,62 @@ export default function Landing() {
               </Reveal>
             </div>
 
-            <div className="ledger border-t rule">
-              {top.length === 0 && Array.from({ length: 8 }, (_, i) => <div key={i} className="h-[86px] shimmer" />)}
-              {top.map((b, i) => (
-                <Reveal key={b.code} delay={i * 50}>
-                  <Link to={`/procedure/${b.type}/${b.code}`} className="block row-hover py-1">
-                    <SpreadBar
-                      label={b.label} low={b.low} high={b.high} ratio={b.ratio}
-                      hospitals={b.hospitals} domain={domain} delay={i * 50}
-                    />
-                  </Link>
-                </Reveal>
-              ))}
+            <div className="spread-col">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 bg-paper-2 rounded-[var(--radius-soft)] px-4 py-3 mb-8">
+                <span className="t-label opacity-45 mr-1.5">Sort</span>
+                {SORTS.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    className="chip"
+                    data-on={sort === s.key}
+                    aria-pressed={sort === s.key}
+                    onClick={() => setSort(s.key)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* The scale, stated once. Every bar below is a span on this ruler,
+                  so where a bar sits means as much as how long it is. */}
+              <div className="relative h-4 mb-2.5">
+                <div className="absolute spread-track inset-y-0" aria-hidden="true">
+                  {ticks.map((t) => (
+                    <span
+                      key={t.cents}
+                      className="absolute top-0 t-figure text-[0.75rem] opacity-50 whitespace-nowrap"
+                      style={{ left: `${t.pct}%`, transform: 'translateX(-50%)' }}
+                    >
+                      {t.label}
+                    </span>
+                  ))}
+                </div>
+                <span className="absolute right-0 top-0 t-label opacity-40 leading-none">Gap</span>
+              </div>
+
+              <div className="relative border-t rule">
+                <div className="absolute spread-track inset-y-0 pointer-events-none" aria-hidden="true">
+                  {ticks.map((t) => (
+                    <div key={t.cents} className="absolute inset-y-0 w-px bg-rule/55" style={{ left: `${t.pct}%` }} />
+                  ))}
+                </div>
+
+                <div className="ledger relative">
+                  {top.length === 0 && Array.from({ length: 8 }, (_, i) => <div key={i} className="h-[118px] shimmer" />)}
+                  {top.map((b, i) => (
+                    <Reveal key={b.code} delay={i * 50}>
+                      <Link to={`/procedure/${b.type}/${b.code}`} className="spread-link block">
+                        <SpreadBar
+                          label={b.label} low={b.low} high={b.high} ratio={b.ratio}
+                          prices={b.prices} hospitals={b.hospitals}
+                          domain={domain} delay={i * 50}
+                        />
+                      </Link>
+                    </Reveal>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -166,8 +225,7 @@ export default function Landing() {
         <section className="on-dark py-24 sm:py-32">
           <div className="max-w-[96rem] mx-auto px-5 sm:px-8 grid lg:grid-cols-[1fr_1fr] gap-14 lg:gap-24 items-center">
             <div>
-              <Reveal as="p" className="t-label text-accent">02 — What nobody tells you</Reveal>
-              <Reveal as="div" className="t-stat mt-7 text-accent" delay={60}>
+              <Reveal as="div" className="t-stat text-accent" delay={60}>
                 {Math.round(stats.cash.share * 100)}%
               </Reveal>
               <Reveal as="p" className="t-title mt-7 max-w-[18ch] font-normal" delay={110}>
@@ -196,8 +254,7 @@ export default function Landing() {
         <div className="max-w-[80rem] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-[minmax(0,26rem)_1fr] gap-10 lg:gap-16 items-center">
             <div>
-              <Reveal as="p" className="t-label opacity-40">Every hospital in the state</Reveal>
-              <Reveal as="h2" className="t-display mt-5" delay={60}>
+              <Reveal as="h2" className="t-display" delay={60}>
                 Who actually<br />publishes.
               </Reveal>
               <Reveal delay={120}>
@@ -217,8 +274,7 @@ export default function Landing() {
       {/* --------------------------------------------------------- how it works */}
       <section className="bg-paper py-24 sm:py-32">
         <div className="max-w-[96rem] mx-auto px-5 sm:px-8">
-          <Reveal as="p" className="t-label opacity-40">03 — How it works</Reveal>
-          <Reveal as="h2" className="t-display mt-6 max-w-[14ch]" delay={60}>Four steps to a real number.</Reveal>
+          <Reveal as="h2" className="t-display max-w-[14ch]">Four steps to a real number.</Reveal>
 
           <div className="ledger mt-14 border-y rule">
             {[

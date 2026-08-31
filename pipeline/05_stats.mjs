@@ -40,6 +40,44 @@ const comparable = rows.filter((r) => r.nHosp >= 8 && r.p10 > 0 && r.p90 > 0);
 
 const pct = (sorted, p) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : null);
 
+/**
+ * A basket of care people actually plan and shop for. Recognisable procedures
+ * make the argument better than statistical extremes, and every one of them is
+ * something a Virginian might schedule next month.
+ */
+const BASKET = [
+  ['CPT', '45378', 'Colonoscopy'],
+  ['CPT', '45380', 'Colonoscopy with biopsy'],
+  ['CPT', '70450', 'CT scan of the head'],
+  ['CPT', '72148', 'MRI of the lower back'],
+  ['CPT', '73721', 'MRI of a knee or leg joint'],
+  ['CPT', '74177', 'CT scan of the abdomen and pelvis'],
+  ['CPT', '76700', 'Abdominal ultrasound'],
+  ['CPT', '77067', 'Screening mammogram'],
+  ['CPT', '80053', 'Comprehensive metabolic blood panel'],
+  ['CPT', '85025', 'Complete blood count'],
+  ['CPT', '81002', 'Urinalysis'],
+  ['CPT', '93000', 'Electrocardiogram'],
+  ['CPT', '93306', 'Echocardiogram of the heart'],
+  ['CPT', '27447', 'Total knee replacement'],
+  ['CPT', '27130', 'Total hip replacement'],
+  ['CPT', '29881', 'Knee arthroscopy with meniscus repair'],
+  ['CPT', '66984', 'Cataract surgery'],
+  ['CPT', '47562', 'Gallbladder removal, laparoscopic'],
+  ['CPT', '49505', 'Inguinal hernia repair'],
+  ['CPT', '59400', 'Childbirth, vaginal delivery'],
+  ['CPT', '59510', 'Childbirth, caesarean delivery'],
+  ['CPT', '43239', 'Upper endoscopy with biopsy'],
+  ['CPT', '19120', 'Breast lump removal'],
+  ['CPT', '64483', 'Spinal injection for back pain'],
+  ['MS-DRG', '470', 'Major joint replacement, inpatient stay'],
+  ['MS-DRG', '291', 'Heart failure, inpatient stay'],
+  ['MS-DRG', '193', 'Pneumonia, inpatient stay'],
+  ['MS-DRG', '807', 'Vaginal delivery, inpatient stay'],
+];
+const BASKET_CODES = new Set(BASKET.map(([t, c]) => t + '|' + c));
+
+const medsByCode = new Map();
 const spreads = [];
 for (const r of comparable) {
   const shard = path.join(DATA, 'codes', r.type.replace(/[^A-Za-z0-9-]/g, ''), r.code.slice(0, 3) + '.json');
@@ -76,6 +114,10 @@ for (const r of comparable) {
     highCity: hospitals[hiH.hIdx]?.city ?? null,
     median: median(meds),
   });
+  // Every hospital's own median, kept only for the codes the basket draws on.
+  // The landing page plots one dot per hospital, and a range with nothing
+  // inside it cannot show that most hospitals cluster low while a few do not.
+  if (BASKET_CODES.has(r.type + '|' + r.code)) medsByCode.set(r.type + '|' + r.code, meds);
 }
 
 spreads.sort((a, b) => b.ratio - a.ratio);
@@ -87,41 +129,11 @@ const byCode = new Map(spreads.map((s) => [s.type + '|' + s.code, s]));
  * make the argument better than statistical extremes, and every one of them is
  * something a Virginian might schedule next month.
  */
-const BASKET = [
-  ['CPT', '45378', 'Colonoscopy'],
-  ['CPT', '45380', 'Colonoscopy with biopsy'],
-  ['CPT', '70450', 'CT scan of the head'],
-  ['CPT', '72148', 'MRI of the lower back'],
-  ['CPT', '73721', 'MRI of a knee or leg joint'],
-  ['CPT', '74177', 'CT scan of the abdomen and pelvis'],
-  ['CPT', '76700', 'Abdominal ultrasound'],
-  ['CPT', '77067', 'Screening mammogram'],
-  ['CPT', '80053', 'Comprehensive metabolic blood panel'],
-  ['CPT', '85025', 'Complete blood count'],
-  ['CPT', '81002', 'Urinalysis'],
-  ['CPT', '93000', 'Electrocardiogram'],
-  ['CPT', '93306', 'Echocardiogram of the heart'],
-  ['CPT', '27447', 'Total knee replacement'],
-  ['CPT', '27130', 'Total hip replacement'],
-  ['CPT', '29881', 'Knee arthroscopy with meniscus repair'],
-  ['CPT', '66984', 'Cataract surgery'],
-  ['CPT', '47562', 'Gallbladder removal, laparoscopic'],
-  ['CPT', '49505', 'Inguinal hernia repair'],
-  ['CPT', '59400', 'Childbirth, vaginal delivery'],
-  ['CPT', '59510', 'Childbirth, caesarean delivery'],
-  ['CPT', '43239', 'Upper endoscopy with biopsy'],
-  ['CPT', '19120', 'Breast lump removal'],
-  ['CPT', '64483', 'Spinal injection for back pain'],
-  ['MS-DRG', '470', 'Major joint replacement, inpatient stay'],
-  ['MS-DRG', '291', 'Heart failure, inpatient stay'],
-  ['MS-DRG', '193', 'Pneumonia, inpatient stay'],
-  ['MS-DRG', '807', 'Vaginal delivery, inpatient stay'],
-];
 
 const basket = BASKET
   .map(([type, code, label]) => {
     const s = byCode.get(type + '|' + code);
-    return s ? { ...s, label } : null;
+    return s ? { ...s, label, prices: medsByCode.get(type + '|' + code) ?? [] } : null;
   })
   .filter(Boolean)
   .sort((a, b) => b.ratio - a.ratio);
