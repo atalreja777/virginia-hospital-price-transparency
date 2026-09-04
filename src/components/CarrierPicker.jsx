@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
  * A native <select> holding 89 entries is the worst control for this job: it
  * cannot be searched, shows one row at a time, and renders differently on every
  * platform. This shows the carriers that actually appear for this procedure,
- * commonest first, with how many published rates each one has — which is the
+ * commonest first, with how many published price entries each one has — which is the
  * information that tells you whether picking it will help.
  */
 export default function CarrierPicker({ options, value, onChange }) {
@@ -89,7 +89,7 @@ export default function CarrierPicker({ options, value, onChange }) {
                               ${value === o.name ? 'bg-paper-2' : ''}`}
                 >
                   <span className="text-[0.9375rem] truncate">{o.name}</span>
-                  <span className="t-small opacity-40 tabular-nums shrink-0">{o.n} rates</span>
+                  <span className="t-small opacity-40 tabular-nums shrink-0">{o.n} entries</span>
                 </button>
               </li>
             ))}
