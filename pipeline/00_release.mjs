@@ -41,6 +41,9 @@ const git = (cmd, fallback = null) => {
 };
 
 const stages = [];
+// Declared before run(): a failing stage calls writeRelease(), which records
+// this, and a `let` further down would still be in its temporal dead zone.
+let testResult = null;
 function run(name, cmd, argv, { optional = false } = {}) {
   const started = Date.now();
   log(`--- ${name}`);
@@ -79,7 +82,9 @@ run('02_pack', 'node', packArgs);
 /* ---- 03-08 --------------------------------------------------------------- */
 const node = (script, extra = []) => ['node', [path.join(REPO, 'pipeline', script), '--data', DATA, ...extra]];
 run('03_geocode', ...node('03_geocode.mjs', A.online ? [] : ['--offline']));
-run('04_zips', ...node('04_zips.mjs', ['--fallback', PUBLIC]));
+// The fallback is the LIVE dataset, not the promotion target: a scratch
+// --publicDir starts empty and must not be expected to seed its own inputs.
+run('04_zips', ...node('04_zips.mjs', ['--fallback', path.join(REPO, 'public', 'data')]));
 run('05_stats', ...node('05_stats.mjs'));
 run('06_payers', ...node('06_payers.mjs'));
 run('07_hospital_pages', ...node('07_hospital_pages.mjs'));
@@ -93,7 +98,6 @@ const validated = run('09_validate', 'node',
 /* ---- tests --------------------------------------------------------------- */
 // The dataset tests run against the candidate, not against whatever happens to
 // be live, so a release is tested before it is promoted rather than after.
-let testResult = null;
 if (!A['no-test']) {
   const ok = run('tests', 'npx', ['vitest', 'run', '--reporter', 'json',
     '--outputFile', path.join(ROOT, 'test-results.json')],
