@@ -1,0 +1,2 @@
+hospital_id,mrf_id,rejected_at,rejected_reason
+910,7010,2026-03-01 00:00:00+00,file declares a different hospital

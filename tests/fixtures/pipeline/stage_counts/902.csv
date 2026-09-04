@@ -1,0 +1,2 @@
+hospital_id,ccn,name,status,mrf_links,mrf_links_rejected,items_total,items_clean,items_with_shoppable_code,items_clean_shoppable,items_with_cash,cash_only_items,rates_total,rates_clean,negotiated_dollar_rates,percentage_only_rates,allowed_amount_rates,algorithm_only_rates
+902,49T002,Test Hospital 2,success,1,0,3,3,3,3,3,1,10,10,9,1,0,0

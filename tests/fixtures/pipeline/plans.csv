@@ -1,0 +1,4 @@
+plan_id,plan_name_raw,plan_key
+1,PPO,ppo
+2,HMO,hmo
+3,MEDICARE ADVANTAGE HMO,ma_hmo

@@ -1,0 +1,1 @@
+hospital_id,file_version_id,item_id,code_type,code,setting,billing_class,modifiers,drug_unit,payer_id,plan_id,methodology_id,negotiated_dollar,negotiated_percentage,negotiated_algorithm,estimated_amount,median_amount,p10_amount,p90_amount,count_raw,additional_notes,derived_basis,quality_labels

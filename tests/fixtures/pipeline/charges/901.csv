@@ -1,0 +1,9 @@
+hospital_id,file_version_id,item_id,source_row_ref,code_type,code,description,setting,billing_class,modifiers,drug_unit,drug_type,gross,cash,min_negotiated,max_negotiated,generic_notes,dup_count
+901,8001,100001,row:100001,CPT,45378,"Colonoscopy, flexible, diagnostic",outpatient,facility,,,,4000,1200,,,,
+901,8001,100002,row:100002,HCPCS,J1234,"Injection, testolimab, 1 mg",outpatient,facility,,,,10,5,,,,
+901,8001,100003,row:100003,CPT,70450,Ct head or brain without contrast,outpatient,facility,,,,2000,1500,,,,
+901,8001,100029,row:100029,CPT,70450,Ct head or brain without contrast,outpatient,facility,,,,2000,150,,,,
+901,8001,100030,row:100030,CPT,70450,Ct head or brain without contrast,inpatient,facility,,,,9000,900,,,,
+901,8001,100031,row:100031,CPT,80053,Comprehensive metabolic panel,outpatient,facility,,,,300,45,,,,
+901,8001,100032,row:100032,CPT,80053,Comprehensive metabolic panel,outpatient,facility,,,,300,60,,,,
+901,8001,100033,row:100033,CPT,29881,"Arthroscopy, knee, surgical, with meniscectomy",outpatient,facility,,,,15000,9000,,,,

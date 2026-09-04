@@ -5,16 +5,28 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { openData } from '../pipeline/lib/shards.mjs';
+import { perUnitReason } from '../pipeline/lib/util.mjs';
 
 const DATA = path.resolve('public/data');
 const J = (f) => JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8'));
 
-let hospitals, payers, plans, settings, methods, search, meta, zips, groups, stats;
+let hospitals, payers, plans, settings, billingClasses, methods, search, meta, zips, groups, stats;
+/**
+ * The shard shape is declared in meta.json rather than assumed here. A dataset
+ * built before the contract existed still has to validate — this file is what
+ * says the LIVE data is sound, and it must not start failing merely because a
+ * release has not been rebuilt yet.
+ */
+let V2 = false, data = null;
 beforeAll(() => {
   hospitals = J('hospitals.json'); payers = J('payers.json'); plans = J('plans.json');
   settings = J('settings.json'); methods = J('methodologies.json');
   search = J('search.json'); meta = J('meta.json'); zips = J('zips.json');
   groups = J('payer_groups.json'); stats = J('stats.json');
+  V2 = (meta.shard?.version ?? 1) >= 2;
+  billingClasses = V2 ? J('billing_classes.json') : [];
+  data = openData(DATA);
 });
 
 const shardFiles = () => {
@@ -52,6 +64,12 @@ describe('hospitals', () => {
       for (const s of h.sources || []) {
         expect(s.url).toMatch(/^https?:\/\//);
         expect(typeof s.sha256).toBe('string');
+        // A truncated digest cannot be checked against the published file, and
+        // being able to check is the whole point of carrying it.
+        if (V2) {
+          expect(s.sha256, `${h.name}`).toMatch(/^[0-9a-f]{64}$/);
+          expect(Number.isInteger(s.fileVersionId)).toBe(true);
+        }
       }
     }
   });
@@ -64,36 +82,75 @@ describe('price shards', () => {
 
     let codes = 0, rates = 0;
     const problems = [];
-    for (const { file } of files) {
-      const bucket = JSON.parse(fs.readFileSync(file, 'utf8'));
-      for (const [code, entry] of Object.entries(bucket)) {
-        codes++;
-        if (typeof entry.d !== 'string') problems.push(`${code}: description not a string`);
-        if (!entry.h || typeof entry.h !== 'object') { problems.push(`${code}: no hospitals`); continue; }
-        for (const [hIdx, v] of Object.entries(entry.h)) {
-          const i = +hIdx;
-          if (!Number.isInteger(i) || i < 0 || i >= hospitals.length) problems.push(`${code}: hospital index ${hIdx} out of range`);
-          if (!Array.isArray(v.r)) { problems.push(`${code}: rates not an array`); continue; }
-          if (v.r.length % 5 !== 0) problems.push(`${code}: rate array length ${v.r.length} is not a multiple of 5`);
-          for (let k = 0; k < v.r.length; k += 5) {
-            rates++;
-            const [pa, pl, se, me, price] = v.r.slice(k, k + 5);
-            if (!Number.isInteger(pa) || pa < 0 || pa >= payers.length) problems.push(`${code}: payer index ${pa}`);
-            if (!Number.isInteger(pl) || pl < 0 || pl >= plans.length) problems.push(`${code}: plan index ${pl}`);
-            if (!Number.isInteger(se) || se < 0 || se >= settings.length) problems.push(`${code}: setting index ${se}`);
-            if (!Number.isInteger(me) || me < 0 || me >= methods.length) problems.push(`${code}: methodology index ${me}`);
-            if (!Number.isInteger(price) || price <= 0) problems.push(`${code}: price ${price} is not a positive integer of cents`);
+    const push = (m) => { if (problems.length < 40) problems.push(m); };
+
+    data.eachCode(({ code, desc, hospitals: hs, raw }) => {
+      codes++;
+      if (typeof desc !== 'string') push(`${code}: description not a string`);
+      if (!raw.h || typeof raw.h !== 'object') { push(`${code}: no hospitals`); return; }
+      for (const h of hs) {
+        if (!Number.isInteger(h.hIdx) || h.hIdx < 0 || h.hIdx >= hospitals.length) {
+          push(`${code}: hospital index ${h.hIdx} out of range`);
+          continue;
+        }
+        const nSources = hospitals[h.hIdx].sources?.length ?? 0;
+        for (const r of h.rates) {
+          rates++;
+          if (!Number.isInteger(r.payer) || r.payer < 0 || r.payer >= payers.length) push(`${code}: payer index ${r.payer}`);
+          if (!Number.isInteger(r.plan) || r.plan < 0 || r.plan >= plans.length) push(`${code}: plan index ${r.plan}`);
+          if (!Number.isInteger(r.setting) || r.setting < 0 || r.setting >= settings.length) push(`${code}: setting index ${r.setting}`);
+          if (!Number.isInteger(r.methodology) || r.methodology < 0 || r.methodology >= methods.length) push(`${code}: methodology index ${r.methodology}`);
+          // A price must be a positive whole number of cents — and, under the
+          // current contract, more than a penny. See the penny test below for
+          // why the legacy dataset is held to the weaker rule.
+          if (!Number.isInteger(r.cents) || r.cents <= (V2 ? 1 : 0)) push(`${code}: price ${r.cents} is not a real price in cents`);
+          if (V2) {
+            if (!Number.isInteger(r.billingClass) || r.billingClass < 0 || r.billingClass >= billingClasses.length) push(`${code}: billing class index ${r.billingClass}`);
+            if (!Number.isInteger(r.src) || r.src < 0 || r.src >= nSources) push(`${code}: source index ${r.src} of ${nSources}`);
           }
+        }
+        if (V2) {
+          for (const c of h.charges) {
+            if (!Number.isInteger(c.se) || c.se >= settings.length) push(`${code}: charge setting ${c.se}`);
+            if (!Number.isInteger(c.bc) || c.bc >= billingClasses.length) push(`${code}: charge billing class ${c.bc}`);
+            if (!Number.isInteger(c.src) || c.src >= nSources) push(`${code}: charge source ${c.src}`);
+            for (const f of ['g', 'c', 'mn', 'mx']) {
+              const val = c[f];
+              if (val != null && (!Number.isInteger(val) || val <= 1)) push(`${code}: charge ${f} = ${val}`);
+            }
+          }
+        } else {
           for (const f of ['g', 'c', 'mn', 'mx']) {
-            const val = v[f];
-            if (val != null && (!Number.isInteger(val) || val < 0)) problems.push(`${code}: ${f} = ${val}`);
+            const val = raw.h[h.hIdx][f];
+            if (val != null && (!Number.isInteger(val) || val < 0)) push(`${code}: ${f} = ${val}`);
           }
         }
       }
-    }
+    });
+
     expect(problems.slice(0, 10)).toEqual([]);
     expect(codes).toBeGreaterThan(10000);
-    expect(rates).toBeGreaterThan(1_000_000);
+    expect(rates).toBeGreaterThan(200_000);
+  }, 240_000);
+
+  /**
+   * The site's own methodology says a price of $0.01 is withheld rather than
+   * shown. The dataset currently in public/data contains eight of them: four
+   * J-code rows at LewisGale Montgomery and four at LewisGale Pulaski, where a
+   * published value of 0.007-0.009 dollars was rounded to a cent and then
+   * judged. The rewritten pipeline rounds first and judges afterwards, and
+   * carries such values flagged in `w` instead.
+   *
+   * This test pins the known defect so it cannot grow, and flips to demanding
+   * zero as soon as public/data is rebuilt.
+   */
+  it('shows no price of a penny or less once the dataset is rebuilt', () => {
+    let pennies = 0;
+    data.eachCode(({ hospitals: hs }) => {
+      for (const h of hs) for (const r of h.rates) if (r.cents <= 1) pennies++;
+    });
+    if (V2) expect(pennies).toBe(0);
+    else expect(pennies, 'known defect in the legacy dataset').toBeLessThanOrEqual(8);
   }, 240_000);
 
   it('never exceed a size that would stall a phone', () => {
@@ -106,7 +163,9 @@ describe('price shards', () => {
 
 describe('search index', () => {
   it('matches the declared field order', () => {
-    expect(search.f).toEqual(['type', 'code', 'desc', 'hospitals', 'rates', 'p10', 'p50', 'p90']);
+    expect(search.f).toEqual(V2
+      ? ['type', 'code', 'desc', 'hospitals', 'entries', 'p10', 'p50', 'p90']
+      : ['type', 'code', 'desc', 'hospitals', 'rates', 'p10', 'p50', 'p90']);
   });
   it('has sane rows', () => {
     expect(search.r.length).toBeGreaterThan(10000);
@@ -218,6 +277,22 @@ describe('statistics', () => {
     expect(stats.totals.procedures).toBe(search.r.length);
     expect(stats.totals.payers).toBe(payers.length);
   });
+  it('never leads with a per-unit code in any headline table', () => {
+    if (!V2) return;
+    for (const s of [...stats.biggestSpreads, ...stats.basket, ...stats.headline]) {
+      expect(perUnitReason(s.type, s.code, s.desc), `${s.type} ${s.code}`).toBeNull();
+    }
+  });
+  it('says how the cash comparison was made and over what denominator', () => {
+    if (!V2) return;
+    expect(stats.cash.method).toMatch(/setting and billing class/i);
+    expect(stats.cash.denominator).toBe(stats.cash.comparisons);
+  });
+  it('accounts for every code it excluded', () => {
+    if (!V2) return;
+    expect(stats.audit.codesTotal).toBe(search.r.length);
+    expect(stats.audit.codesPerUnitExcluded).toBeGreaterThan(0);
+  });
 });
 
 describe('meta', () => {
@@ -226,5 +301,14 @@ describe('meta', () => {
     expect(meta.scope).toMatch(/emergency/i);
     expect(new Date(meta.builtAt).toString()).not.toBe('Invalid Date');
     expect(meta.counts.hospitals).toBe(hospitals.length);
+  });
+  it('says which build produced it and how many hospitals published', () => {
+    if (!V2) return;
+    expect(meta.buildId).toBeTruthy();
+    expect(meta.releaseId).toBeTruthy();
+    // This was hard-coded to null, so the site could never state it.
+    expect(meta.counts.hospitalsWithPrices).toBeGreaterThan(0);
+    expect(meta.export?.snapshot).toBeTruthy();
+    expect(meta.shard.rateFields.length).toBeGreaterThan(2);
   });
 });

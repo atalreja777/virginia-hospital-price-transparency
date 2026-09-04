@@ -9,10 +9,14 @@
     "preview": "vite preview --port 4173",
     "test": "vitest run",
     "test:watch": "vitest",
+    "release": "node pipeline/00_release.mjs",
+    "release:sample": "node pipeline/00_release.mjs --limit 5 --no-promote",
     "data:export": "./pipeline/01_export.sh",
     "data:pack": "node --max-old-space-size=8192 pipeline/02_pack.mjs",
     "data:geo": "node pipeline/03_geocode.mjs",
-    "data": "npm run data:export && npm run data:pack && npm run data:geo"
+    "data:validate": "node pipeline/09_validate.mjs",
+    "data:fixtures": "node tests/fixtures/pipeline/build.mjs",
+    "data": "node -e \"console.error('`npm run data` ran only stages 1-3 and left the rest to be remembered by hand. Use `npm run release`, which runs every stage into pipeline/out/<releaseId>/, validates it and only then swaps it into public/data. Running it now.')\" && npm run release"
   },
   "dependencies": {
     "maplibre-gl": "^5.1.0",
