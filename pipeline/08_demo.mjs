@@ -8,14 +8,13 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { args, dirs, log, median, writeJSON, readJSON } from './lib/util.mjs';
+import { openData, chargeSummary } from './lib/shards.mjs';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DATA = path.join(HERE, '..', 'public', 'data');
-const J = (f) => JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8'));
-
-const hospitals = J('hospitals.json');
-const median = (a) => (a.length ? a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)] : null);
+const A = args();
+const { data: DATA } = dirs(A);
+const hospitals = readJSON(path.join(DATA, 'hospitals.json'));
+const data = openData(DATA);
 const titleCase = (s) => (s || '').toLowerCase().replace(/\b([a-z])/g, (c) => c.toUpperCase()).replace(/\bOf\b/g, 'of');
 
 // Care people recognise instantly and might genuinely schedule.
@@ -32,28 +31,27 @@ const SHOW = [
 function pickSpread(sorted, n) {
   if (sorted.length <= n) return sorted;
   const out = [];
-  for (let i = 0; i < n; i++) {
-    out.push(sorted[Math.round((i / (n - 1)) * (sorted.length - 1))]);
-  }
-  // Identical neighbours add nothing; drop them but never the endpoints.
+  for (let i = 0; i < n; i++) out.push(sorted[Math.round((i / (n - 1)) * (sorted.length - 1))]);
   return out.filter((r, i) => i === 0 || i === out.length - 1 || r.price !== out[i - 1].price);
 }
 
 const out = [];
 for (const [type, code, label, blurb] of SHOW) {
-  const shard = path.join(DATA, 'codes', type, code.slice(0, 3) + '.json');
-  if (!fs.existsSync(shard)) { console.warn('missing shard for', code); continue; }
-  const entry = JSON.parse(fs.readFileSync(shard, 'utf8'))[code];
-  if (!entry) { console.warn('missing code', code); continue; }
+  const loaded = data.loadCode(type, code);
+  if (!loaded) { log('missing shard for', code); continue; }
 
   const rows = [];
-  for (const [hIdx, v] of Object.entries(entry.h)) {
-    const prices = [];
-    for (let i = 4; i < v.r.length; i += 5) prices.push(v.r[i]);
-    const m = median(prices);
-    const h = hospitals[+hIdx];
-    if (m == null || !h) continue;
-    rows.push({ name: titleCase(h.name), city: titleCase(h.city), ccn: h.ccn, price: m, cash: v.c ?? null });
+  for (const h of loaded.hospitals) {
+    const hosp = hospitals[h.hIdx];
+    if (!hosp || !h.prices.length) continue;
+    const ch = chargeSummary(h.charges);
+    rows.push({
+      name: titleCase(hosp.name), city: titleCase(hosp.city), ccn: hosp.ccn,
+      price: median(h.prices),
+      // A hospital can publish more than one cash price for a code — one per
+      // setting and billing class. Show the range, never a single merged number.
+      cashLow: ch.cashLow, cashHigh: ch.cashHigh,
+    });
   }
   rows.sort((a, b) => a.price - b.price);
   if (rows.length < 6) continue;
@@ -64,16 +62,15 @@ for (const [type, code, label, blurb] of SHOW) {
     low: rows[0].price,
     high: rows[rows.length - 1].price,
     ratio: rows[rows.length - 1].price / rows[0].price,
-    // Sample evenly across the sorted range rather than taking the cheapest few.
-    // Whole health systems price identically, so the head of the list is often
-    // eight copies of one number — true, but it makes the chart look broken.
-    // Always keep the cheapest and the dearest; they are the point.
+    // Sample evenly across the sorted range rather than taking the cheapest few:
+    // whole health systems price identically, so the head of the list is often
+    // eight copies of one number. Always keep the cheapest and the dearest.
     rows: pickSpread(rows, 11),
   });
 }
 
-fs.writeFileSync(path.join(DATA, 'demo.json'), JSON.stringify(out));
-console.log(`demo.json: ${out.length} procedures, ${(fs.statSync(path.join(DATA, 'demo.json')).size / 1024).toFixed(1)} KB`);
+const bytes = writeJSON(path.join(DATA, 'demo.json'), out);
+log(`demo.json: ${out.length} procedures, ${(bytes / 1024).toFixed(1)} KB`);
 for (const d of out) {
-  console.log(`   ${d.label.padEnd(26)} ${d.hospitals} hospitals  $${(d.low/100).toFixed(0)} – $${(d.high/100).toFixed(0)}  ${d.ratio.toFixed(1)}x`);
+  log(`   ${d.label.padEnd(26)} ${d.hospitals} hospitals  $${(d.low / 100).toFixed(0)} - $${(d.high / 100).toFixed(0)}  ${d.ratio.toFixed(1)}x`);
 }

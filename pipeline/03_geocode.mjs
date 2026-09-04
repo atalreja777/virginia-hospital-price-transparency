@@ -11,10 +11,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { args, dirs } from './lib/util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DATA = path.join(HERE, '..', 'public', 'data', 'hospitals.json');
+const A = args();
+const DATA = path.join(dirs(A).data, 'hospitals.json');
 const CACHE = path.join(HERE, 'geocache.json');
+// A release build must not stall for ten minutes behind a geocoder that is down;
+// --offline resolves from the cache only and reports what it could not place.
+const OFFLINE = !!A.offline;
 const UA = 'VA-Hospital-Price-Transparency/1.0 (civic price transparency project)';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -58,6 +63,7 @@ let hit = 0, done = 0;
 for (const h of hospitals) {
   const key = h.ccn || String(h.id);
   if (cache[key]) { Object.assign(h, cache[key]); hit++; continue; }
+  if (OFFLINE) { log('  UNCACHED (offline)', h.name, h.city); continue; }
 
   let g = await census(h);
   if (!g) { await sleep(1100); g = await nominatim(h); }
