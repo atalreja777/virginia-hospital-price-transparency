@@ -5,6 +5,8 @@
  * whole hundred-megabyte dataset.
  */
 
+import { decodeBucket } from './shards.js';
+
 const BASE = import.meta.env.BASE_URL || '/';
 
 // The build id from meta.json, once known, rides along on later requests as a
@@ -65,6 +67,21 @@ export const loadZips       = () => once('zips',    () => getJSON('zips.json'));
 export const loadPayerGroups= () => once('pgroups', () => getJSON('payer_groups.json'));
 
 /**
+ * Files the rewritten pipeline added. Every one of them is optional: a dataset
+ * built before the contract existed simply does not have them, and the site
+ * has to deploy in either order. A missing file is `null` — a real answer —
+ * while a network failure still throws, because those are not the same fact.
+ */
+const optional = (key, file) => once(key, () => getJSON(file).catch((e) => {
+  if (e?.status === 404) return null;
+  throw e;
+}));
+export const loadBillingClasses = () => optional('bc',    'billing_classes.json');
+export const loadPayerSegments  = () => optional('pseg',  'payer_segments.json');
+export const loadStageCounts    = () => optional('stage', 'stage_counts.json');
+export const loadRelease        = () => optional('rel',   'release.json');
+
+/**
  * Re-check meta.json (bypassing the in-memory cache) and report whether the
  * build id has moved on since this tab loaded — the signal that a deploy
  * happened underneath an open tab and it is time to suggest a reload.
@@ -92,8 +109,11 @@ const tokens = (s) => norm(s).split(' ').filter((t) => t.length > 1 && !STOP.has
  */
 export const loadSearch = () => once('search', async () => {
   const raw = await getJSON('search.json');
-  const rows = raw.r.map(([type, code, desc, hospitals, rates, p10, p50, p90]) => ({
-    type, code, desc, hospitals, rates, p10, p50, p90,
+  // Field 5 is `entries` under the new contract and `rates` under the old one.
+  // It is positional either way; only the label changed, and what it counts —
+  // retained distinct price entries rather than post-collapse rows.
+  const rows = raw.r.map(([type, code, desc, hospitals, entries, p10, p50, p90]) => ({
+    type, code, desc, hospitals, entries, rates: entries, p10, p50, p90,
   }));
 
   const byToken = new Map();
@@ -481,32 +501,34 @@ const shardName = (type, code) => {
  */
 export async function loadCode(type, code, signal) {
   const file = shardName(type, code);
-  let bucket;
+
+  // meta.json declares the shard shape, so it has to be in hand before a shard
+  // can be decoded. It is memoised and tiny; on a dataset that predates the
+  // contract it simply carries no `shard` key and the legacy decoder is used.
+  // A meta that will not load must not turn into "nobody published this", so
+  // only a 404 is treated as an answer.
+  const metaP = loadMeta().catch((e) => {
+    if (e?.status === 404) return null;
+    throw e;
+  });
+
+  let bucket, meta;
   try {
-    bucket = await once(file, () => getJSON(file, signal));
+    [bucket, meta] = await Promise.all([once(file, () => getJSON(file, signal)), metaP]);
   } catch (e) {
     if (e?.status === 404) return { status: 'absent' };
     throw e;
   }
-  const entry = bucket?.[code];
-  if (!entry) return { status: 'absent' };
 
-  const hospitals = Object.entries(entry.h).map(([hIdx, v]) => {
-    const rates = [];
-    for (let i = 0; i < v.r.length; i += 5) {
-      rates.push({ payer: v.r[i], plan: v.r[i + 1], setting: v.r[i + 2], method: v.r[i + 3], price: v.r[i + 4] });
-    }
-    rates.sort((a, b) => a.price - b.price);
-    const prices = rates.map((r) => r.price);
-    return {
-      hIdx: +hIdx,
-      gross: v.g, cash: v.c, minNegotiated: v.mn, maxNegotiated: v.mx,
-      rates, prices,
-      low: prices[0] ?? null,
-      median: prices.length ? prices[Math.floor(prices.length / 2)] : null,
-      high: prices[prices.length - 1] ?? null,
-    };
-  });
+  const decoded = decodeBucket(meta, bucket, code);
+  if (!decoded) return { status: 'absent' };
 
-  return { status: 'ok', type, code, desc: entry.d, hospitals };
+  return {
+    status: 'ok',
+    type,
+    code,
+    desc: decoded.desc,
+    hospitals: decoded.hospitals,
+    contract: decoded.contract,
+  };
 }

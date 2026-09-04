@@ -2,8 +2,12 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   loadCode, loadHospitals, loadPayers, loadPlans, loadSettings, loadMethods, loadZips,
-  loadSearch, loadPayerGroups, hasNewBuild,
+  loadSearch, loadPayerGroups, loadBillingClasses, loadPayerSegments, loadMeta, hasNewBuild,
 } from '../lib/data.js';
+import {
+  defaultContext, rateMatches, contextMedian, methodGroupsByIndex,
+  METHOD_GROUPS, isFormulaOnly,
+} from '../lib/prices.js';
 import { estimate, emptyBenefits, fmtUSD } from '../lib/estimate.js';
 import { withDistance, zipToPoint, isValidZip, approxRoadMiles } from '../lib/geo.js';
 import useDocumentMeta from '../lib/useDocumentMeta.js';
@@ -60,6 +64,11 @@ export default function Procedure() {
   const [sort, setSort] = useState('price');
   const [showMap, setShowMap] = useState(true);
   const [linkCopied, setLinkCopied] = useState(false);
+  // What counts as one comparable thing. Null until the dictionaries say what
+  // settings and billing classes this dataset actually distinguishes.
+  const [ctx, setCtx] = useState(null);
+  const [ctxOpen, setCtxOpen] = useState(false);
+  const [commercialOnly, setCommercialOnly] = useState(false);
 
   const closeIns = useCallback(() => setInsOpen(false), []);
   const openIns = useCallback(() => setInsOpen(true), []);
@@ -87,14 +96,21 @@ export default function Procedure() {
       Promise.all([
         loadCode(type, code), loadHospitals(), loadPayers(), loadPlans(),
         loadSettings(), loadMethods(), loadZips(), loadSearch(), loadPayerGroups(),
+        loadBillingClasses(), loadPayerSegments(), loadMeta().catch(() => null),
       ]),
       timeout,
     ])
-      .then(([d, h, payers, plans, settings, methods, z, idx, pg]) => {
+      .then(([d, h, payers, plans, settings, methods, z, idx, pg, bc, pseg, meta]) => {
         if (!alive) return;
         if (d.status === 'absent') { setError({ kind: 'absent' }); return; }
+        const next = {
+          payers, plans, settings, methods, index: idx, payerGroups: pg,
+          billingClasses: bc || [], payerSegments: pseg || null,
+          percentageScale: meta?.shard?.percentageScale ?? 100,
+        };
         setData(d); setHospitals(h); setZips(z);
-        setDicts({ payers, plans, settings, methods, index: idx, payerGroups: pg });
+        setDicts(next);
+        setCtx((prev) => prev || defaultContext(next));
       })
       .catch((e) => {
         if (!alive) return;
@@ -160,30 +176,53 @@ export default function Procedure() {
     return { availableBrands: counts, availablePlans: pl };
   }, [data, dicts, brandMembers]);
 
+  /** Methodology index -> method group, computed once per dataset. */
+  const groupByIndex = useMemo(() => methodGroupsByIndex(dicts?.methods), [dicts]);
+
+  /** Payer indices whose segment is commercial, for the "commercial only" toggle. */
+  const commercialPayers = useMemo(() => {
+    const seg = dicts?.payerSegments;
+    if (!seg?.payers) return null;
+    return new Set(seg.payers.filter((p) => p.segment === 'commercial').map((p) => p.i));
+  }, [dicts]);
+
   /** Hospitals joined to geography, filtered by the user's choices, priced. */
   const rows = useMemo(() => {
     if (!data || !hospitals) return [];
+    const carrierOk = (r) => (!brandMembers || brandMembers.has(r.payer))
+      && (planId == null || r.plan === planId)
+      && (!commercialOnly || !commercialPayers || commercialPayers.has(r.payer));
+
     let out = data.hospitals.map((h) => {
       const info = hospitals[h.hIdx] || {};
-      const matching = h.rates.filter(
-        (r) => (!brandMembers || brandMembers.has(r.payer)) && (planId == null || r.plan === planId)
-      );
-      const prices = matching.map((r) => r.price).sort((a, b) => a - b);
-      const median = prices.length ? prices[Math.floor(prices.length / 2)] : null;
+      // Everything this hospital published that fits the chosen carrier AND the
+      // chosen comparison context. Per-diem entries stay in this list — they
+      // are real published rates — but are held out of the ranking below.
+      const matching = h.rates.filter((r) => carrierOk(r) && rateMatches(r, ctx, groupByIndex));
+      const ranked = contextMedian(h.rates.filter(carrierOk), ctx, groupByIndex, { forRanking: true });
+      const formula = (h.formula || []).filter(carrierOk);
+      const withheld = (h.withheld || []).filter(carrierOk);
+
       return {
         ...h,
         ccn: info.ccn, name: info.name, city: info.city, address: info.address,
         zip: info.zip, lat: info.lat, lon: info.lon, ownership: info.ownership,
         sources: info.sources || [], locationSrc: info.src,
-        matching, prices, median,
-        low: prices[0] ?? null,
-        high: prices[prices.length - 1] ?? null,
-        hasMatch: prices.length > 0,
+        matching, formula, withheld,
+        prices: ranked.prices,
+        median: ranked.median,
+        low: ranked.low,
+        high: ranked.high,
+        hasMatch: ranked.n > 0,
+        // A hospital that published only formulas is a finding, not an absence.
+        formulaOnly: ranked.n === 0 && formula.length > 0,
       };
     });
 
-    // With a carrier chosen, a hospital that never named it has nothing to say.
-    if (brandMembers) out = out.filter((r) => r.hasMatch);
+    // With a carrier chosen, a hospital that never named it has nothing to say
+    // — unless what it published for that carrier is a formula, which is an
+    // answer of its own and must not disappear.
+    if (brandMembers) out = out.filter((r) => r.hasMatch || r.formulaOnly);
 
     const beforeRadius = out.filter((r) => r.median != null).length;
     out = withDistance(out, origin, radius || null);
@@ -194,7 +233,8 @@ export default function Procedure() {
     else if (sort === 'distance') out.sort((a, b) => (a.miles ?? Infinity) - (b.miles ?? Infinity));
     else if (sort === 'name') out.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return out;
-  }, [data, hospitals, brandMembers, planId, origin, radius, sort]);
+  }, [data, hospitals, brandMembers, planId, origin, radius, sort, ctx, groupByIndex,
+      commercialOnly, commercialPayers]);
 
   const carriers = useMemo(() => {
     const list = [...availableBrands.entries()].map(([name, n]) => ({ name, n }));
@@ -375,10 +415,105 @@ export default function Procedure() {
             <option value="name">Name</option>
           </select>
 
+          <button onClick={() => setCtxOpen((v) => !v)} aria-expanded={ctxOpen} className="chip" data-on={ctxOpen}>
+            What is being compared
+          </button>
+
           <button onClick={() => setShowMap((v) => !v)} className="chip ml-auto lg:hidden" data-on={showMap}>
             {showMap ? 'Hide map' : 'Show map'}
           </button>
         </div>
+
+        {/* What counts as one comparable thing. A median over a case rate and a
+            per-diem rate describes neither, so the choice is explicit and the
+            defaults are the narrow, honest ones. */}
+        {ctxOpen && ctx && (
+          <div className="max-w-[92rem] mx-auto px-5 sm:px-8 pb-4 pt-1 border-t rule">
+            <div className="grid sm:grid-cols-3 gap-5 pt-3">
+              <div>
+                <p className="t-label opacity-50 mb-2">Setting</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[['default', 'Outpatient'], ['inpatient', 'Inpatient'], ['any', 'Any']].map(([k, lbl]) => {
+                    const on = k === 'any' ? ctx.settings == null
+                      : k === 'inpatient' ? !!ctx.settings?.length && ctx.settings.every((i) => /inpatient/i.test(dicts.settings[i] || ''))
+                      : !!ctx.settings?.length && ctx.settings.some((i) => /^outpatient$/i.test(dicts.settings[i] || ''));
+                    return (
+                      <button key={k} className="chip" data-on={on} onClick={() => setCtx((c) => ({
+                        ...c,
+                        settings: k === 'any' ? null
+                          : k === 'inpatient'
+                            ? dicts.settings.map((s, i) => [s, i]).filter(([s]) => /inpatient|both/i.test(s)).map(([, i]) => i)
+                            : dicts.settings.map((s, i) => [s, i]).filter(([s]) => /^(outpatient|both)$/i.test(s)).map(([, i]) => i),
+                      }))}>
+                        {lbl}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="t-small opacity-45 mt-1.5">
+                  Outpatient includes files that publish “both”.
+                </p>
+              </div>
+
+              <div>
+                <p className="t-label opacity-50 mb-2">Billing class</p>
+                {dicts.billingClasses?.length > 1 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {dicts.billingClasses.map((b, i) => (
+                      <button key={i} className="chip" data-on={ctx.billingClass === i}
+                              onClick={() => setCtx((c) => ({ ...c, billingClass: c.billingClass === i ? null : i }))}>
+                        {b || 'not stated'}
+                      </button>
+                    ))}
+                    <button className="chip" data-on={ctx.billingClass == null}
+                            onClick={() => setCtx((c) => ({ ...c, billingClass: null }))}>Any</button>
+                  </div>
+                ) : (
+                  <p className="t-small opacity-45">
+                    These files do not distinguish a billing class, so there is nothing to filter on.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <p className="t-label opacity-50 mb-2">Rate method</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {METHOD_GROUPS.map((g) => (
+                    <button key={g.id} className="chip" data-on={ctx.methodGroups?.includes(g.id)}
+                            onClick={() => setCtx((c) => ({
+                              ...c,
+                              methodGroups: c.methodGroups?.includes(g.id)
+                                ? c.methodGroups.filter((x) => x !== g.id)
+                                : [...(c.methodGroups || []), g.id],
+                            }))}>
+                      {g.label}{g.badge ? ` (${g.badge})` : ''}
+                    </button>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 mt-2 t-small cursor-pointer">
+                  <input type="checkbox" checked={!!ctx.includePerDiem}
+                         onChange={(e) => setCtx((c) => ({ ...c, includePerDiem: e.target.checked }))} />
+                  Include per-diem rates in the ranking
+                </label>
+                <p className="t-small opacity-45 mt-1">
+                  A per-diem rate is a price per day. It is excluded from the cross-hospital
+                  ranking by default because it cannot be ranked against a price per case.
+                </p>
+              </div>
+            </div>
+
+            {dicts.payerSegments && (
+              <label className="flex items-center gap-2 mt-4 pt-3 border-t rule t-small cursor-pointer">
+                <input type="checkbox" checked={commercialOnly} onChange={(e) => setCommercialOnly(e.target.checked)} />
+                Commercial plans only
+                <span className="opacity-45">
+                  — keeps Medicare Advantage and Medicaid rates out of a commercial comparison.
+                  Payer and plan names are always the hospital's own wording.
+                </span>
+              </label>
+            )}
+          </div>
+        )}
 
         {zip && !origin && (
           <div className="max-w-[92rem] mx-auto px-5 sm:px-8 pb-3">
@@ -452,6 +587,8 @@ export default function Procedure() {
                   selected={selected === r.ccn}
                   onSelect={() => setSelected(selected === r.ccn ? null : r.ccn)}
                   dicts={dicts}
+                  ctx={ctx}
+                  groupByIndex={groupByIndex}
                   estimateFn={usingBenefits ? est : null}
                   showDistance={!!origin}
                 />

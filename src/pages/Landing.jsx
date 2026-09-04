@@ -98,7 +98,8 @@ export default function Landing() {
             <Reveal delay={140}>
               <dl className="border-t border-hair">
                 {[
-                  [stats ? stats.totals.prices.toLocaleString() : '—', 'Published prices read from Virginia hospital files'],
+                  // `totals.prices` became `totals.priceEntries`.
+                  [stats ? (stats.totals.priceEntries ?? stats.totals.prices ?? 0).toLocaleString() : '—', 'Published price entries read from Virginia hospital files'],
                   [stats ? stats.totals.hospitalsPublishing : '—', 'Hospitals with prices you can compare'],
                   [stats ? `${stats.spread.medianRatio.toFixed(1)}×` : '—', 'Typical gap between the cheaper and dearer hospital for the same code'],
                   [stats ? `${Math.round(stats.cash.share * 100)}%` : '—', 'Of the time, the cash price beats the insured price'],

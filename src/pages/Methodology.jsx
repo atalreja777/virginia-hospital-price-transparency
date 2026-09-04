@@ -99,10 +99,13 @@ export default function Methodology() {
                   ['Assembled', new Date(meta.builtAt).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })],
                   ['Hospitals', meta.counts.hospitals],
                   ['Procedures', meta.counts.codes.toLocaleString()],
-                  ['Prices', meta.counts.rates.toLocaleString()],
+                  // `counts.rates` became `counts.priceEntries`.
+                  ['Price entries', (meta.counts.priceEntries ?? meta.counts.rates ?? 0).toLocaleString()],
+                  meta.counts.withheldEntries ? ['Withheld below a cent', meta.counts.withheldEntries.toLocaleString()] : null,
+                  meta.counts.formulaEntries ? ['Formula-based rates', meta.counts.formulaEntries.toLocaleString()] : null,
                   ['Payer names', meta.counts.payers],
                   ['Data files', meta.counts.shards.toLocaleString()],
-                ].map(([k, v]) => (
+                ].filter(Boolean).map(([k, v]) => (
                   <div key={k} className="flex justify-between border-b rule pb-2">
                     <dt className="opacity-60">{k}</dt><dd className="t-mono tnum">{v}</dd>
                   </div>

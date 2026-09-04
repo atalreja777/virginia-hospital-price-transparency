@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import Loading from '../components/Loading.jsx';
 import Reveal from '../components/Reveal.jsx';
 import { fmtUSD } from '../lib/estimate.js';
+import { freshness } from '../lib/prices.js';
 import useDocumentMeta from '../lib/useDocumentMeta.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
@@ -41,6 +42,13 @@ export default function Hospital() {
 
   const src = h.sources?.[0];
   const cashShare = h.stats.cashComparisons ? h.stats.cashBeatsInsured / h.stats.cashComparisons : null;
+  // `stats.rates` became `stats.priceEntries` under the new contract.
+  const priceEntries = h.stats.priceEntries ?? h.stats.rates ?? 0;
+  // Values that exist but are not prices, reported rather than dropped.
+  const also = [
+    h.stats.withheldEntries ? `${h.stats.withheldEntries.toLocaleString()} withheld below one cent` : null,
+    h.stats.formulaEntries ? `${h.stats.formulaEntries.toLocaleString()} formula-based with no dollar amount` : null,
+  ].filter(Boolean);
 
   return (
     <>
@@ -64,7 +72,7 @@ export default function Hospital() {
         <div className="max-w-[92rem] mx-auto px-5 sm:px-8 grid grid-cols-2 lg:grid-cols-4 gap-10">
           {[
             [h.stats.codes.toLocaleString(), 'Schedulable procedures priced'],
-            [h.stats.rates.toLocaleString(), 'Individual published prices'],
+            [priceEntries.toLocaleString(), 'Published price entries'],
             [h.stats.payers, 'Distinct payer names in the file'],
             [cashShare != null ? `${Math.round(cashShare * 100)}%` : '—', 'Of prices where cash beats insured'],
           ].map(([v, l]) => (
@@ -74,6 +82,11 @@ export default function Hospital() {
             </div>
           ))}
         </div>
+        {also.length > 0 && (
+          <div className="max-w-[92rem] mx-auto px-5 sm:px-8 mt-8">
+            <p className="t-small opacity-55">Also published here: {also.join('; ')}.</p>
+          </div>
+        )}
       </section>
 
       {h.basket?.length > 0 && (
@@ -110,7 +123,21 @@ export default function Hospital() {
                         <td className={`py-3 px-4 text-right tnum font-medium ${diff == null ? '' : diff > 0 ? 'text-[var(--color-p5)]' : 'text-[var(--color-p1)]'}`}>
                           {diff == null ? '—' : `${diff > 0 ? '+' : '−'}${fmtUSD(Math.abs(diff), { round: true }).replace('$', '$')}`}
                         </td>
-                        <td className="py-3 pl-4 text-right tnum opacity-70">{fmtUSD(b.cash, { round: true })}</td>
+                        {/* A hospital can publish more than one cash price for a
+                            code — one per setting and billing class. Showing the
+                            max, as this once did, invents a price nobody published. */}
+                        <td className="py-3 pl-4 text-right tnum opacity-70">
+                          {(() => {
+                            const lo = b.cashLow ?? b.cash ?? null;
+                            const hi = b.cashHigh ?? b.cash ?? null;
+                            if (lo == null) return '—';
+                            return hi != null && hi !== lo
+                              ? <span title="This hospital published more than one cash price for this code.">
+                                  {fmtUSD(lo, { round: true })} – {fmtUSD(hi, { round: true })}
+                                </span>
+                              : fmtUSD(lo, { round: true });
+                          })()}
+                        </td>
                       </tr>
                     );
                   })}
@@ -147,10 +174,12 @@ export default function Hospital() {
               <dl className="space-y-3 t-small">
                 {[
                   ['Schema version', src.version || 'not stated'],
-                  ['Hospital says updated', src.updated || 'not stated'],
+                  ['Hospital says updated', `${src.updated || 'not stated'} (${freshness(src.updated).label})`],
                   ['We fetched it', src.fetched || '—'],
                   ['Size', src.bytes ? `${(src.bytes / 1048576).toFixed(1)} MB` : '—'],
-                  ['Content hash', src.sha256 ? `${src.sha256}…` : '—'],
+                  // The full digest, not a prefix with an ellipsis: being able to
+                  // check it against the published file is the point of carrying it.
+                  ['Content hash', src.sha256 || '—'],
                   ['Attestation confirmed', src.attested === true ? 'yes' : src.attested === false ? 'no' : 'not stated'],
                   ['Federal ID (CCN)', h.ccn],
                 ].map(([k, v]) => (

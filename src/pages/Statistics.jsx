@@ -5,8 +5,12 @@ import SpreadBar from '../components/SpreadBar.jsx';
 import Loading from '../components/Loading.jsx';
 import { fmtUSD } from '../lib/estimate.js';
 import useDocumentMeta from '../lib/useDocumentMeta.js';
+import { loadStageCounts, loadRelease } from '../lib/data.js';
+import { groupStageCounts } from '../lib/prices.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
+
+const titleCase = (s) => (s || '').toLowerCase().replace(/\b\w/g, (x) => x.toUpperCase());
 
 function Stat({ value, label, note, accent }) {
   return (
@@ -28,8 +32,14 @@ export default function Statistics() {
   );
   const [s, setS] = useState(null);
   const [err, setErr] = useState(null);
+  // Both are absent on a dataset built before the contract; the page falls back
+  // to the flat list rather than showing nothing.
+  const [stageCounts, setStageCounts] = useState(null);
+  const [release, setRelease] = useState(null);
   useEffect(() => {
     fetch(`${BASE}data/stats.json`).then((r) => r.json()).then(setS).catch((e) => setErr(String(e)));
+    loadStageCounts().then(setStageCounts).catch(() => setStageCounts(null));
+    loadRelease().then(setRelease).catch(() => setRelease(null));
   }, []);
 
   if (err) return <div className="pt-40 px-6 max-w-2xl mx-auto"><h1 className="t-title">The figures would not load.</h1><p className="t-body mt-3 opacity-70">{err}</p></div>;
@@ -38,6 +48,10 @@ export default function Statistics() {
   // Shared log domain so every bar in the column is comparable.
   const domain = [Math.min(...s.basket.map((b) => b.low)), Math.max(...s.basket.map((b) => b.high))];
   const notPublishing = s.totals.hospitalsSeeded - s.totals.hospitalsPublishing;
+  // `totals.prices` became `totals.priceEntries`, and now counts retained
+  // distinct entries rather than post-collapse rows.
+  const priceEntries = s.totals.priceEntries ?? s.totals.prices ?? 0;
+  const outcomeGroups = stageCounts?.length ? groupStageCounts(stageCounts) : null;
 
   return (
     <>
@@ -55,7 +69,7 @@ export default function Statistics() {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-10 mt-16 pt-10 border-t border-hair">
             <Reveal delay={60}><Stat value={s.totals.hospitalsPublishing} label="Hospitals with usable prices" note={`of ${s.totals.hospitalsSeeded} Virginia hospitals in the federal registry`} /></Reveal>
-            <Reveal delay={110}><Stat value={s.totals.prices.toLocaleString()} label="Individual published prices" /></Reveal>
+            <Reveal delay={110}><Stat value={priceEntries.toLocaleString()} label="Published price entries" /></Reveal>
             <Reveal delay={160}><Stat value={s.totals.procedures.toLocaleString()} label="Schedulable procedures" note="Emergency and ambulance codes excluded" /></Reveal>
             <Reveal delay={210}><Stat value={`${s.spread.medianRatio.toFixed(1)}×`} label="Median price spread" note="Typical gap between cheaper and dearer hospitals for the same code" accent /></Reveal>
           </div>
@@ -206,7 +220,35 @@ export default function Statistics() {
             ))}
           </div>
 
-          {s.noPrices?.length > 0 && (
+          {/* Grouped by why, not one flat list. "Published nothing" and "published
+              local codes only" are different findings, and a psychiatric facility
+              that published a readable file belongs in the second. */}
+          {outcomeGroups ? (
+            <Reveal delay={200} className="mt-10">
+              <p className="t-label opacity-45 mb-4">Why, hospital by hospital</p>
+              <div className="space-y-px bg-rule rounded-[3px] overflow-hidden border rule">
+                {outcomeGroups.map((g) => (
+                  <details key={g.id} className="bg-paper">
+                    <summary className="p-4 cursor-pointer flex items-baseline gap-3">
+                      <span className="t-mono text-[1.25rem] font-semibold tnum shrink-0">{g.count}</span>
+                      <span className="flex-1">
+                        <span className="font-medium">{g.label}</span>
+                        <span className="block t-small opacity-60 mt-0.5">{g.note}</span>
+                      </span>
+                    </summary>
+                    <ul className="px-4 pb-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1.5 t-small opacity-75">
+                      {g.hospitals.map((h, i) => (
+                        <li key={i} className="truncate" title={h.name}>
+                          {titleCase(h.name)}
+                          {h.ccn && <span className="opacity-40 t-mono"> · {h.ccn}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ))}
+              </div>
+            </Reveal>
+          ) : s.noPrices?.length > 0 && (
             <Reveal delay={200} className="mt-10">
               <details className="panel p-5">
                 <summary className="t-small font-medium cursor-pointer">
@@ -215,7 +257,7 @@ export default function Statistics() {
                 <ul className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1.5 t-small opacity-75">
                   {s.noPrices.map((h, i) => (
                     <li key={i} className="truncate">
-                      {h.name?.toLowerCase().replace(/\b\w/g, (x) => x.toUpperCase())}
+                      {titleCase(h.name)}
                       <span className="opacity-50"> · {h.status}</span>
                     </li>
                   ))}
@@ -237,6 +279,14 @@ export default function Statistics() {
             <Link to="/methodology" className="btn btn-accent">How this was built</Link>
             <Link to="/" className="btn btn-ghost">Look up a procedure</Link>
           </Reveal>
+          {release?.releaseId && (
+            <Reveal delay={170}>
+              <p className="t-small opacity-45 mt-8 t-mono">
+                Data release {release.releaseId}
+                {release.builtAt && `, built ${new Date(release.builtAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`}
+              </p>
+            </Reveal>
+          )}
         </div>
       </section>
     </>

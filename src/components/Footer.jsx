@@ -1,10 +1,19 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { loadMeta } from '../lib/data.js';
+import { loadMeta, loadRelease } from '../lib/data.js';
 
 export default function Footer() {
   const [meta, setMeta] = useState(null);
-  useEffect(() => { loadMeta().then(setMeta).catch(() => {}); }, []);
+  const [release, setRelease] = useState(null);
+  useEffect(() => {
+    loadMeta().then(setMeta).catch(() => {});
+    // Absent on a dataset built before releases were recorded.
+    loadRelease().then(setRelease).catch(() => {});
+  }, []);
+
+  // `counts.rates` became `counts.priceEntries`, and now counts retained
+  // distinct entries rather than every row read.
+  const entries = meta?.counts?.priceEntries ?? meta?.counts?.rates ?? null;
 
   return (
     <footer className="on-dark mt-px">
@@ -44,13 +53,22 @@ export default function Footer() {
         </div>
 
         <div className="mt-16 pt-8 border-t border-hair flex flex-col sm:flex-row gap-4 sm:items-end justify-between">
-          <p className="t-small opacity-55 max-w-xl">
-            Built from hospital machine-readable files published under 45 CFR Part 180.
-            {meta && <> Data assembled {new Date(meta.builtAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.</>}
-          </p>
+          <div className="max-w-xl">
+            <p className="t-small opacity-55">
+              Built from hospital machine-readable files published under 45 CFR Part 180.
+              {meta && <> Data assembled {new Date(meta.builtAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.</>}
+            </p>
+            {release?.releaseId && (
+              <p className="t-mono text-[0.6875rem] opacity-45 mt-2">
+                Data release {release.releaseId}
+                {release.builtAt && `, built ${new Date(release.builtAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`}
+              </p>
+            )}
+          </div>
           {meta && (
             <p className="t-mono text-[0.6875rem] opacity-45 tnum">
-              {meta.counts.rates.toLocaleString()} prices · {meta.counts.codes.toLocaleString()} procedures · {meta.counts.hospitals} hospitals
+              {entries != null && <>{entries.toLocaleString()} price entries · </>}
+              {meta.counts.codes.toLocaleString()} procedures · {meta.counts.hospitals} hospitals
             </p>
           )}
         </div>
