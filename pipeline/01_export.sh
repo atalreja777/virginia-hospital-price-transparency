@@ -15,7 +15,20 @@ SCOPE="ic.code_type_norm IN ('CPT','MS-DRG','HCPCS')
          OR (ic.code_norm ~ '^[0-9]{5}\$' AND NOT (ic.code_norm BETWEEN '99281' AND '99292')) )
    AND ( ic.code_type_norm <> 'HCPCS' OR ic.code_norm !~ '^A0' )"
 
+# Only in-force versions of active files, on hospital<->file links that have not
+# been rejected (backend migration 0016 / SPEC D41). Items and rates carry
+# file_version_id, so this join is what stops a superseded version, a retired
+# file, or a wrong-hospital attribution from reaching the site.
+CURRENT="JOIN file_versions fv ON fv.file_version_id = i.file_version_id
+                          AND fv.is_current AND fv.parse_outcome = 'parsed'
+  JOIN mrf_files m ON m.mrf_id = fv.mrf_id AND m.active
+  JOIN hospital_mrfs hm ON hm.hospital_id = i.hospital_id AND hm.mrf_id = fv.mrf_id
+                       AND hm.rejected_at IS NULL"
+
 say(){ printf '\n[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+
+psql -d "$DB" -Atc "SELECT 1 FROM information_schema.columns WHERE table_name='hospital_mrfs' AND column_name='rejected_at'" | grep -q 1 \
+  || { echo "hospital_mrfs.rejected_at is missing: apply backend migration 0016 first" >&2; exit 1; }
 
 say "1/6 hospitals"
 psql -d "$DB" -v ON_ERROR_STOP=1 -c "\copy (
@@ -58,6 +71,7 @@ psql -d "$DB" -v ON_ERROR_STOP=1 -c "\copy (
     FROM item_codes ic
     JOIN hospitals h ON h.hospital_id = ic.hospital_id AND h.state='VA'
     JOIN items i ON i.item_id = ic.item_id AND i.hospital_id = ic.hospital_id
+    $CURRENT
     WHERE $SCOPE
     GROUP BY 1,2,3
   ) t
@@ -74,6 +88,7 @@ psql -d "$DB" -v ON_ERROR_STOP=1 -c "\copy (
   FROM item_codes ic
   JOIN hospitals h ON h.hospital_id = ic.hospital_id AND h.state='VA'
   JOIN items i ON i.item_id = ic.item_id AND i.hospital_id = ic.hospital_id
+  $CURRENT
   WHERE $SCOPE AND i.quality_labels = '{}'
   GROUP BY 1,2,3,4,5
 ) TO '$OUT/charges.csv' CSV HEADER"
@@ -88,7 +103,10 @@ psql -d "$DB" -v ON_ERROR_STOP=1 -c "\copy (
   JOIN hospitals h ON h.hospital_id = ic.hospital_id AND h.state='VA'
   JOIN items i ON i.item_id = ic.item_id AND i.hospital_id = ic.hospital_id
   JOIN rates r ON r.item_id = i.item_id AND r.hospital_id = i.hospital_id
+                AND r.file_version_id = i.file_version_id
+  $CURRENT
   WHERE $SCOPE
+    AND i.quality_labels = '{}'
     AND r.negotiated_dollar IS NOT NULL
     AND r.negotiated_dollar > 0
     AND r.quality_labels = '{}'
