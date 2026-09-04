@@ -13,9 +13,10 @@ export default function Footer() {
           <div>
             <p className="t-label opacity-50">What this is</p>
             <p className="t-body mt-4 max-w-md opacity-80">
-              Every hospital in the United States must publish what it charges and what it has
-              agreed to accept from each insurance plan. Almost nobody reads those files. This
-              site reads them for Virginia and puts the numbers side by side.
+              Most hospitals covered by 45 CFR Part 180 must publish what they charge and what
+              they have agreed to accept from each insurance plan; federal and certain other
+              facilities are excepted. Almost nobody reads those files. This site reads them for
+              Virginia and puts the numbers side by side.
             </p>
             <p className="t-small mt-5 opacity-55">
               Prices are estimates for planning. They are not a bill, a quote, or a guarantee of

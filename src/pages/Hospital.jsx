@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import Loading from '../components/Loading.jsx';
 import Reveal from '../components/Reveal.jsx';
 import { fmtUSD } from '../lib/estimate.js';
+import useDocumentMeta from '../lib/useDocumentMeta.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
 const titleCase = (s) => (s || '').toLowerCase().replace(/\b([a-z])/g, (c) => c.toUpperCase()).replace(/\bOf\b/g, 'of');
@@ -11,6 +12,11 @@ export default function Hospital() {
   const { ccn } = useParams();
   const [h, setH] = useState(null);
   const [err, setErr] = useState(null);
+
+  useDocumentMeta(
+    h ? titleCase(h.name) : undefined,
+    h ? `Published prices, coverage and sources for ${titleCase(h.name)}, a Virginia hospital.` : undefined,
+  );
 
   useEffect(() => {
     setH(null); setErr(null);

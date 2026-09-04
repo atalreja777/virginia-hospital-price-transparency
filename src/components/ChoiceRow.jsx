@@ -9,15 +9,16 @@ import MoneyInput from './MoneyInput.jsx';
  * numbers, so offering those as one tap gets most people to an answer without
  * leaving the page — and the "Other" field is there when they do not fit.
  */
-export default function ChoiceRow({ value, onChange, options, allowOther = true, suffix, id }) {
+export default function ChoiceRow({ value, onChange, options, allowOther = true, suffix, id, unknownLabel = "I don't know" }) {
   const known = options.some((o) => o.value === value);
-  const [other, setOther] = useState(!known && value != null && value !== 0);
+  const isUnknown = value == null;
+  const [other, setOther] = useState(!known && !isUnknown);
 
   return (
     <div>
       <div className="flex flex-wrap gap-2" role="group" aria-labelledby={id}>
         {options.map((o) => {
-          const on = !other && value === o.value;
+          const on = !other && !isUnknown && value === o.value;
           return (
             <button
               key={o.label}
@@ -42,6 +43,17 @@ export default function ChoiceRow({ value, onChange, options, allowOther = true,
               ${other ? 'bg-ink text-paper' : 'bg-card border rule hover:border-ink/40 hover:bg-paper-2'}`}
           >
             Other
+          </button>
+        )}
+        {unknownLabel !== false && (
+          <button
+            type="button"
+            onClick={() => { setOther(false); onChange(null); }}
+            aria-pressed={isUnknown && !other}
+            className={`px-4 h-11 rounded-[10px] text-[0.9375rem] font-medium transition-all duration-200
+              ${isUnknown && !other ? 'bg-ink text-paper' : 'bg-transparent border border-dashed rule opacity-70 hover:opacity-100 hover:border-ink/40'}`}
+          >
+            {unknownLabel}
           </button>
         )}
       </div>

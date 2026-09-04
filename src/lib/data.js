@@ -6,7 +6,19 @@
  */
 
 const BASE = import.meta.env.BASE_URL || '/';
-const url = (p) => `${BASE}data/${p}`.replace(/([^:])\/{2,}/g, '$1/');
+
+// The build id from meta.json, once known, rides along on later requests as a
+// query string. It changes nothing about what a URL means — the server still
+// answers the same file either way — so caching is unaffected; it only gives
+// a shard fetched moments after a new deploy a distinct URL from the one a
+// stale tab already cached, and gives a genuine version mismatch (this tab's
+// index.html references data a later deploy has since removed) a signal to
+// detect rather than a silent wrong answer.
+let buildId = null;
+const url = (p) => {
+  const base = `${BASE}data/${p}`.replace(/([^:])\/{2,}/g, '$1/');
+  return buildId ? `${base}${base.includes('?') ? '&' : '?'}v=${encodeURIComponent(buildId)}` : base;
+};
 
 const memo = new Map();
 /** Fetch a JSON file once and keep it. Concurrent callers share one request. */
@@ -16,13 +28,34 @@ function once(key, loader) {
   }
   return memo.get(key);
 }
-async function getJSON(p) {
-  const r = await fetch(url(p));
-  if (!r.ok) throw new Error(`Could not load ${p} (${r.status})`);
-  return r.json();
+async function getJSON(p, signal) {
+  let r;
+  try {
+    r = await fetch(url(p), signal ? { signal } : undefined);
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e;
+    const err = new Error(`Could not reach the server for ${p}: ${e.message}`);
+    err.cause = e;
+    throw err;
+  }
+  if (!r.ok) {
+    const err = new Error(`Could not load ${p} (${r.status})`);
+    err.status = r.status;
+    throw err;
+  }
+  try {
+    return await r.json();
+  } catch (e) {
+    const err = new Error(`${p} did not parse as JSON`);
+    err.cause = e;
+    throw err;
+  }
 }
 
-export const loadMeta       = () => once('meta',    () => getJSON('meta.json'));
+export const loadMeta = () => once('meta', () => getJSON('meta.json').then((m) => {
+  buildId = m?.buildId ?? m?.builtAt ?? buildId;
+  return m;
+}));
 export const loadHospitals  = () => once('hosp',    () => getJSON('hospitals.json'));
 export const loadPayers     = () => once('payers',  () => getJSON('payers.json'));
 export const loadPlans      = () => once('plans',   () => getJSON('plans.json'));
@@ -30,6 +63,22 @@ export const loadSettings   = () => once('sett',    () => getJSON('settings.json
 export const loadMethods    = () => once('meth',    () => getJSON('methodologies.json'));
 export const loadZips       = () => once('zips',    () => getJSON('zips.json'));
 export const loadPayerGroups= () => once('pgroups', () => getJSON('payer_groups.json'));
+
+/**
+ * Re-check meta.json (bypassing the in-memory cache) and report whether the
+ * build id has moved on since this tab loaded — the signal that a deploy
+ * happened underneath an open tab and it is time to suggest a reload.
+ */
+export async function hasNewBuild() {
+  const seenAt = buildId;
+  try {
+    const m = await getJSON(`meta.json?t=${Date.now()}`);
+    const latest = m?.buildId ?? m?.builtAt ?? null;
+    return !!(seenAt && latest && latest !== seenAt);
+  } catch {
+    return false;
+  }
+}
 
 /* ---------------------------------------------------------------- search -- */
 
@@ -73,6 +122,21 @@ export const loadSearch = () => once('search', async () => {
 /** Is this string a billing code the user typed directly? */
 export const looksLikeCode = (q) => /^[A-Za-z]?\d{2,5}$/.test(q.trim());
 
+const CODE_TYPES = { CPT: 'CPT', HCPCS: 'HCPCS', 'MS-DRG': 'MS-DRG', DRG: 'MS-DRG' };
+
+/**
+ * "CPT 70551", "CPT:70551", "HCPCS J1885", "MS-DRG 470", "DRG 470" — a code
+ * typed with its type prefix, so the search can go straight to that exact
+ * code instead of falling through to a fuzzy word match on "cpt" and "470".
+ */
+export function parseCodeQuery(q) {
+  const m = String(q || '').trim().match(/^(CPT|HCPCS|MS-DRG|DRG)\s*[:\-]?\s*([A-Za-z0-9]{1,8})$/i);
+  if (!m) return null;
+  const type = CODE_TYPES[m[1].toUpperCase()];
+  if (!type) return null;
+  return { type, code: m[2].toUpperCase() };
+}
+
 
 
 /**
@@ -85,29 +149,30 @@ export const looksLikeCode = (q) => /^[A-Za-z]?\d{2,5}$/.test(q.trim());
  * goes through the normal index.
  */
 const ALIASES = [
+  [/\brevision\b.*\bknee\b|\bknee\b.*\brevision\b/,                          [['MS-DRG','466'],['MS-DRG','467'],['MS-DRG','468'],['CPT','27486'],['CPT','27487']]],
   [/\b(ct|cat)\s*(scan)?\s*(of\s*)?(the\s*)?(head|brain)\b|^ct\s*head/, [['CPT','70450'],['CPT','70460']]],
   [/\b(ct|cat)\s*(scan)?\s*(of\s*)?(the\s*)?(abdomen|belly|stomach)/,     [['CPT','74177'],['CPT','74176']]],
   [/\b(ct|cat)\s*(scan)?\s*(of\s*)?(the\s*)?chest/,                        [['CPT','71260'],['CPT','71250']]],
   [/^(ct|cat)(\s*scan)?$/,                                                    [['CPT','70450'],['CPT','74177'],['CPT','71250']]],
   [/\bmri\b.*(back|spine|lumbar)|^(back|lumbar)\s*mri/,                     [['CPT','72148'],['CPT','72158']]],
   [/\bmri\b.*(knee|leg)/,                                                    [['CPT','73721'],['CPT','73718']]],
-  [/\bmri\b.*(brain|head)/,                                                  [['CPT','70551'],['CPT','70553']]],
+  [/\bmri\b.*(brain|head)/,                                                  [['CPT','70551'],['CPT','70552'],['CPT','70553']]],
   [/^mri$/,                                                                    [['CPT','72148'],['CPT','73721'],['CPT','70551']]],
   [/\b(knee\s*replacement|total\s*knee)\b/,                                [['CPT','27447'],['MS-DRG','470']]],
   [/\b(hip\s*replacement|total\s*hip)\b/,                                  [['CPT','27130'],['MS-DRG','470']]],
   [/\bshoulder\s*replacement\b/,                                            [['CPT','23472']]],
-  [/\b(knee\s*(arthroscopy|scope)|meniscus)\b/,                             [['CPT','29881'],['CPT','29880']]],
+  [/\b(knee\s*(arthroscopy|scope)|meniscus)\b/,                             [['CPT','29880'],['CPT','29881'],['CPT','29882'],['CPT','29883']]],
   [/\bcataract\b/,                                                           [['CPT','66984'],['CPT','66982']]],
   [/\bcolonoscopy\b/,                                                        [['CPT','45378'],['CPT','45380'],['CPT','45385']]],
   [/\b(upper\s*endoscopy|egd)\b/,                                           [['CPT','43239'],['CPT','43235']]],
   [/\bgall\s*bladder\b|\bcholecystectomy\b/,                              [['CPT','47562'],['CPT','47563']]],
-  [/\bhernia\b/,                                                             [['CPT','49505'],['CPT','49585']]],
+  [/\bhernia\b/,                                                             [['CPT','49505']]],
   [/\bappendix\b|\bappendectomy\b/,                                        [['CPT','44970']]],
   [/\bhysterectomy\b/,                                                       [['CPT','58150'],['CPT','58571']]],
   [/\btonsil/,                                                                [['CPT','42820'],['CPT','42826']]],
   [/\b(childbirth|give\s*birth|vaginal\s*(delivery|birth)|have\s*a\s*baby)\b/, [['CPT','59400'],['MS-DRG','807']]],
   [/\b(c\s*section|cesarean|caesarean)\b/,                                  [['CPT','59510'],['MS-DRG','788']]],
-  [/\bmammogram\b|\bmammograph/,                                            [['CPT','77067'],['CPT','77065']]],
+  [/\bmammogram\b|\bmammograph/,                                            [['CPT','77067'],['CPT','77065'],['CPT','77066']]],
   [/\b(x\s*-?\s*ray)\b.*chest|^chest\s*x/,                                [['CPT','71046'],['CPT','71045']]],
   [/\b(ekg|ecg|electrocardiogram)\b/,                                        [['CPT','93000'],['CPT','93005']]],
   [/\b(echo|echocardiogram)\b/,                                              [['CPT','93306'],['CPT','93307']]],
@@ -128,8 +193,58 @@ const ALIASES = [
   [/\b(bone\s*density|dexa)\b/,                                             [['CPT','77080']]],
   [/\b(vasectomy)\b/,                                                        [['CPT','55250']]],
   [/\b(carpal\s*tunnel)\b/,                                                 [['CPT','64721']]],
-  [/\b(cataract|lasik|eye\s*surgery)\b/,                                    [['CPT','66984']]],
+  // LASIK is deliberately not mapped to anything. It is not billed through
+  // hospital machine-readable files, and pointing it at cataract surgery — a
+  // different procedure that happens to also be eye surgery — would be a
+  // confident-looking wrong answer, which is worse than no answer.
 ];
+
+/**
+ * Query attributes that split one clinical concept into two different codes.
+ * A plain token match cannot tell "MRI brain with contrast" from "without" —
+ * both queries contain "mri" and "brain" — so each pair here rewards a
+ * description that agrees with what was typed and penalises one that
+ * contradicts it.
+ */
+const ATTRIBUTE_PAIRS = [
+  { yes: (t) => t.has('with'), no: (t) => t.has('without') || t.has('wo') || t.has('w/o'),
+    descYes: /\bwith contrast\b/i, descNo: /\bwithout contrast\b/i },
+  { yes: (t) => t.has('screening'), no: (t) => t.has('diagnostic'),
+    descYes: /\bscreening\b/i, descNo: /\bdiagnostic\b/i },
+  { yes: (t) => t.has('revision'), no: (t) => t.has('primary') || t.has('initial'),
+    descYes: /\brevision\b/i, descNo: /\brevision\b/i, negateNo: true },
+  { yes: (t) => t.has('repair'), no: (t) => t.has('removal') || t.has('excision'),
+    descYes: /\brepair\b/i, descNo: /\bremoval\b|ectomy\b|\bexcision\b/i },
+  { yes: (t) => t.has('bilateral'), no: (t) => t.has('unilateral'),
+    descYes: /\bbilateral\b/i, descNo: /\bunilateral\b/i },
+];
+
+/**
+ * Score how well one procedure's description agrees with the with/without,
+ * screening/diagnostic-style attributes present in the raw (unfiltered)
+ * query tokens. Large relative to the +1-per-rank spacing used for curated
+ * alias order, so it can actually reorder a curated list; small relative to
+ * the score gap between an alias hit and a generic search hit, so it never
+ * promotes an unrelated procedure.
+ */
+function attributeScore(rawTokenSet, desc) {
+  let s = 0;
+  for (const a of ATTRIBUTE_PAIRS) {
+    const wantYes = a.yes(rawTokenSet);
+    const wantNo = a.no(rawTokenSet);
+    if (wantYes === wantNo) continue; // no signal, or a contradictory query
+    if (a.negateNo) {
+      // "no" side means the description must NOT carry the marker (e.g. a
+      // "primary" query wants a description with no mention of "revision").
+      if (wantYes) s += a.descYes.test(desc) ? 900 : -900;
+      else s += a.descYes.test(desc) ? -900 : 300;
+      continue;
+    }
+    if (wantYes) { if (a.descYes.test(desc)) s += 900; if (a.descNo.test(desc)) s -= 900; }
+    else { if (a.descNo.test(desc)) s += 900; if (a.descYes.test(desc)) s -= 900; }
+  }
+  return s;
+}
 
 /** Codes a curated alias points at, in order, for this query. */
 function aliasHits(index, q) {
@@ -245,29 +360,49 @@ function expand(qs) {
  * Codes typed directly win outright; otherwise rank by how many query terms
  * match, then by how many hospitals publish a price (coverage = usefulness).
  */
+// Below this, a token-matched (non-alias, non-code) result is noise rather
+// than a confident answer — the UI shows "no confident match" instead of
+// rows that merely share one common word with the query.
+const MIN_RELEVANCE = 70;
+
 export function searchProcedures(index, query, limit = 40) {
   if (!index) return [];
   const q = query.trim();
   if (q.length < 2) return [];
 
   const out = [];
-  const push = (row, boost) => out.push({ row, score: boost });
+  // `floor` marks entries that are always trusted regardless of MIN_RELEVANCE
+  // — a curated alias or an exact/prefix code match already is the confident
+  // answer, not a candidate for the relevance cutoff.
+  const push = (row, boost, trusted = false) => out.push({ row, score: boost, trusted });
 
-  // Curated answers first, in the order the alias lists them.
-  aliasHits(index, q).forEach((row, i) => push(row, 5e8 - i));
+  const rawTokens = new Set(norm(q).split(' ').filter(Boolean));
+  const rawTokenSet = { has: (w) => rawTokens.has(w) };
+
+  // A code typed with its type prefix — "CPT 70551", "HCPCS J1885",
+  // "MS-DRG 470" — resolves straight to that exact code.
+  const typedCode = parseCodeQuery(q);
+  if (typedCode) {
+    const hit = index.byCode.get(`${typedCode.type}|${typedCode.code}`);
+    if (hit) push(hit, 3e9, true);
+  }
+
+  // Curated answers next, in the order the alias lists them, adjusted for
+  // any with/without-style attribute the query asked for.
+  aliasHits(index, q).forEach((row, i) => push(row, 5e8 - i + attributeScore(rawTokenSet, row.desc), true));
 
   // direct code hit
   if (looksLikeCode(q)) {
     const up = q.toUpperCase();
     for (const t of ['CPT', 'HCPCS', 'MS-DRG']) {
       const hit = index.byCode.get(`${t}|${up}`);
-      if (hit) push(hit, 1e9 + hit.hospitals);
+      if (hit) push(hit, 1e9 + hit.hospitals, true);
     }
     // partial code prefix
     if (out.length < 8) {
       for (const row of index.rows) {
         if (row.code.startsWith(up) && row.code !== up) {
-          push(row, 1e6 + row.hospitals);
+          push(row, 1e6 + row.hospitals, true);
           if (out.length > 30) break;
         }
       }
@@ -303,12 +438,14 @@ export function searchProcedures(index, query, limit = 40) {
       // Every typed word present, in any order, beats a partial match.
       if (typed.every((t) => nd.includes(t))) s += 450;
       if (row.type === 'CPT') s += 60;                // outpatient codes are what people shop
+      s += attributeScore(rawTokenSet, row.desc);
       push(row, s);
     }
   }
 
   const seen = new Set();
   return out
+    .filter((x) => x.trusted || x.score >= MIN_RELEVANCE)
     .sort((a, b) => b.score - a.score)
     .filter(({ row }) => {
       const k = `${row.type}|${row.code}`;
@@ -332,19 +469,27 @@ const shardName = (type, code) => {
  * Load every published price for one procedure.
  * Returns null when the code exists in the index but the shard has no rows.
  */
-export async function loadCode(type, code) {
+/**
+ * Load every published price for one procedure.
+ *
+ * `status: 'absent'` means the code was looked for and genuinely has no
+ * published price — a real, calm answer. Anything else wrong (offline, a 5xx,
+ * a shard that failed to parse) throws, because that is not the same fact and
+ * must not be shown with the same words.
+ *
+ * @param {AbortSignal} [signal] aborts the fetch, e.g. on route change
+ */
+export async function loadCode(type, code, signal) {
   const file = shardName(type, code);
-  // A code nobody published has no shard at all. That is a real answer — "no
-  // Virginia hospital priced this" — not a failure, so it must not surface as
-  // a broken page.
   let bucket;
   try {
-    bucket = await once(file, () => getJSON(file));
-  } catch {
-    return null;
+    bucket = await once(file, () => getJSON(file, signal));
+  } catch (e) {
+    if (e?.status === 404) return { status: 'absent' };
+    throw e;
   }
   const entry = bucket?.[code];
-  if (!entry) return null;
+  if (!entry) return { status: 'absent' };
 
   const hospitals = Object.entries(entry.h).map(([hIdx, v]) => {
     const rates = [];
@@ -363,5 +508,5 @@ export async function loadCode(type, code) {
     };
   });
 
-  return { type, code, desc: entry.d, hospitals };
+  return { status: 'ok', type, code, desc: entry.d, hospitals };
 }

@@ -4,6 +4,7 @@ import Nav from './components/Nav.jsx';
 import Footer from './components/Footer.jsx';
 import Loading from './components/Loading.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import ResearchPreviewBanner from './components/ResearchPreviewBanner.jsx';
 
 const Landing     = lazy(() => import('./pages/Landing.jsx'));
 const Procedure   = lazy(() => import('./pages/Procedure.jsx'));
@@ -29,6 +30,7 @@ export default function App() {
         Skip to content
       </a>
       <ScrollToTop />
+      <ResearchPreviewBanner />
       <Nav />
       <main id="main">
         <ErrorBoundary>

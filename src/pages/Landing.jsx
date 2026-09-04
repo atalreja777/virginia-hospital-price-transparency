@@ -7,6 +7,7 @@ import PriceDemo from '../components/PriceDemo.jsx';
 import VirginiaDots from '../components/VirginiaDots.jsx';
 import HeroField from '../components/HeroField.jsx';
 import { fmtUSD } from '../lib/estimate.js';
+import useDocumentMeta from '../lib/useDocumentMeta.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
 
@@ -21,6 +22,11 @@ const SORTS = [
 ];
 
 export default function Landing() {
+  useDocumentMeta(
+    null,
+    'Search a procedure at Virginia hospitals, filter by insurance, and get a planning estimate '
+    + 'from the benefit numbers you enter — built from the prices hospitals are required to publish.',
+  );
   const [stats, setStats] = useState(null);
   const [sort, setSort] = useState('gap');
   useEffect(() => {
@@ -119,7 +125,7 @@ export default function Landing() {
             <div className="flex items-end justify-between gap-6 flex-wrap mb-5">
               <div>
                 <h2 className="t-title max-w-[24ch]">
-                  Real prices, at real Virginia hospitals, right now.
+                  Real prices, from the latest file we located for each hospital, with its declared date.
                 </h2>
               </div>
               <p className="t-small opacity-50 max-w-[34ch]">
@@ -260,7 +266,8 @@ export default function Landing() {
               <Reveal delay={120}>
                 <p className="t-body mt-6 opacity-70 max-w-[40ch]">
                   The rule has applied since 2021. Each dot is one Virginia hospital, placed
-                  where it really is. Filled dots publish prices this site could read and use.
+                  at its geocoded address; approximate ZIP-center pins are marked. Filled dots
+                  publish prices this site could read and use.
                   Hollow ones do not.
                 </p>
                 <Link to="/data" className="btn btn-ghost mt-7">See what is missing</Link>
@@ -280,7 +287,7 @@ export default function Landing() {
             {[
               ['Name the procedure', 'Type what your doctor called it, or the code from the order. Emergency care is left out, because nobody shops for an ambulance.'],
               ['Set how far you will travel', 'Enter your ZIP and a radius. Driving an extra thirty minutes is often the whole difference.'],
-              ['Add your insurance', 'Pick your carrier from the names hospitals published. The site then uses your actual negotiated rate, not an average.'],
+              ['Add your insurance', 'Pick your carrier from the names hospitals published. The site then uses a rate the hospital published under this payer and plan name, not an average.'],
               ['Enter your deductible', 'Deductible, coinsurance, copay, out-of-pocket maximum. If you do not know them, every field explains where to look.'],
             ].map(([title, body], i) => (
               <Reveal key={title} delay={i * 60}>

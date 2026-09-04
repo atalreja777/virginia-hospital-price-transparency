@@ -59,10 +59,13 @@
   --color-p4: #DB6B2A;
   --color-p5: #C7402F;
 
-  --font-display: "Bricolage Grotesque", "Archivo", ui-sans-serif, system-ui, sans-serif;
-  --font-body:    "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-serif:   "Instrument Serif", ui-serif, Georgia, serif;
-  --font-mono:    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Bricolage Grotesque is the one webfont this site loads (see index.html);
+     everything else below is the system stack already installed on the
+     reader's device, so it paints immediately and cannot fail to load. */
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-body:    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif:   ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono:    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-q:  cubic-bezier(0.76, 0, 0.24, 1);

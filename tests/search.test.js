@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { searchProcedures, looksLikeCode } from '../src/lib/data.js';
+import { searchProcedures, looksLikeCode, parseCodeQuery } from '../src/lib/data.js';
 
 let index;
 beforeAll(() => {
@@ -113,5 +113,101 @@ describe('robustness', () => {
       searchProcedures(index, q, 40);
     }
     expect(performance.now() - t0).toBeLessThan(600);
+  });
+});
+
+describe('code-type prefixes', () => {
+  it('parses a type-prefixed code in its various punctuations', () => {
+    expect(parseCodeQuery('CPT 70551')).toEqual({ type: 'CPT', code: '70551' });
+    expect(parseCodeQuery('CPT:70551')).toEqual({ type: 'CPT', code: '70551' });
+    expect(parseCodeQuery('CPT-70551')).toEqual({ type: 'CPT', code: '70551' });
+    expect(parseCodeQuery('HCPCS J1885')).toEqual({ type: 'HCPCS', code: 'J1885' });
+    expect(parseCodeQuery('MS-DRG 470')).toEqual({ type: 'MS-DRG', code: '470' });
+    expect(parseCodeQuery('DRG 470')).toEqual({ type: 'MS-DRG', code: '470' });
+  });
+  it('is null for anything else', () => {
+    expect(parseCodeQuery('colonoscopy')).toBe(null);
+    expect(parseCodeQuery('70551')).toBe(null);
+  });
+
+  it('a type-prefixed code resolves to that exact code, not a fuzzy match', () => {
+    const top = (q) => searchProcedures(index, q, 40)[0];
+    expect(top('CPT 70551')).toMatchObject({ type: 'CPT', code: '70551' });
+    expect(top('CPT:70551')).toMatchObject({ type: 'CPT', code: '70551' });
+    expect(top('MS-DRG 470')).toMatchObject({ type: 'MS-DRG', code: '470' });
+    expect(top('DRG 470')).toMatchObject({ type: 'MS-DRG', code: '470' });
+  });
+});
+
+describe('golden queries', () => {
+  const top = (q) => searchProcedures(index, q, 40)[0];
+
+  it('distinguishes with-contrast from without-contrast', () => {
+    expect(top('MRI brain with contrast')).toMatchObject({ type: 'CPT', code: '70552' });
+    expect(top('MRI brain without contrast')).toMatchObject({ type: 'CPT', code: '70551' });
+    expect(top('CT abdomen without contrast').code).toMatch(/^(74176|74150)$/);
+  });
+
+  it('distinguishes screening from diagnostic', () => {
+    expect(top('diagnostic mammogram').code).toMatch(/^(77065|77066)$/);
+    expect(top('screening mammogram')).toMatchObject({ type: 'CPT', code: '77067' });
+  });
+
+  it('finds a revision, not a primary, knee replacement', () => {
+    expect(['466', '467', '468', '27486', '27487']).toContain(top('revision knee replacement').code);
+  });
+
+  it('finds a meniscus repair, not a meniscectomy', () => {
+    expect(['29882', '29883']).toContain(top('meniscus repair').code);
+  });
+
+  it('finds polyp removal during colonoscopy', () => {
+    expect(top('colonoscopy with polyp removal')).toMatchObject({ type: 'CPT', code: '45385' });
+  });
+
+  it('does not confidently match LASIK to anything, least of all cataract surgery', () => {
+    const r = searchProcedures(index, 'LASIK', 40);
+    expect(r.every((x) => x.code !== '66984')).toBe(true);
+  });
+
+  it('a bare code goes straight to that code', () => {
+    expect(top('70551')).toMatchObject({ type: 'CPT', code: '70551' });
+  });
+});
+
+describe('minimum relevance', () => {
+  it('gives no confident match for a nonsense query rather than a weak guess', () => {
+    expect(searchProcedures(index, 'zzzzqqqqxxxx')).toHaveLength(0);
+    expect(searchProcedures(index, 'LASIK')).toHaveLength(0);
+  });
+  it('still finds legitimate short and prefix queries', () => {
+    expect(searchProcedures(index, 'colon').length).toBeGreaterThan(0);
+    expect(searchProcedures(index, 'mri').length).toBeGreaterThan(0);
+    expect(searchProcedures(index, 'mamm').length).toBeGreaterThan(0);
+  });
+});
+
+describe('alias table integrity', () => {
+  const dataSrc = fs.readFileSync(path.resolve('src/lib/data.js'), 'utf8');
+
+  it('every alias code exists in the search index', () => {
+    // Re-read the module source to enumerate the curated codes without
+    // duplicating the list here, so this test fails the moment a code is
+    // added to the table that the current dataset does not contain.
+    const aliasSrc = dataSrc.slice(dataSrc.indexOf('const ALIASES = ['), dataSrc.indexOf('\n];', dataSrc.indexOf('const ALIASES = [')) + 3);
+    const codeRe = /\[['"](CPT|HCPCS|MS-DRG)['"]\s*,\s*['"]([A-Za-z0-9]+)['"]\]/g;
+    const missing = [];
+    let m;
+    while ((m = codeRe.exec(aliasSrc))) {
+      const [, type, code] = m;
+      if (!index.byCode.has(`${type}|${code}`)) missing.push(`${type}|${code}`);
+    }
+    expect(missing, `alias codes missing from search.json: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('no longer maps the deleted hernia code 49585', () => {
+    const herniaLine = dataSrc.split('\n').find((l) => l.includes('\\bhernia\\b'));
+    expect(herniaLine).toBeTruthy();
+    expect(herniaLine).not.toMatch(/49585/);
   });
 });
