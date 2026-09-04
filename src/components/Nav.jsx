@@ -49,14 +49,17 @@ export default function Nav() {
           ${onDark || open ? 'text-paper' : 'text-ink'}`}
       >
         <div className="max-w-[92rem] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-6">
-          <Link to="/" className="flex items-center gap-2.5 shrink-0" aria-label="Home">
+          <Link to="/" className="flex items-center gap-2.5 min-w-0">
             <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" className="shrink-0">
               <rect width="32" height="32" rx="8" className={onDark || open ? 'fill-paper' : 'fill-ink'} />
               <path d="M8 21.5 13 10l5 8 2-3.5 4 7" stroke="#2ED3B7" strokeWidth="2.4" fill="none"
                     strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span className="font-semibold tracking-[-0.026em] text-[0.9375rem] leading-none whitespace-nowrap">
-              What Virginia Hospitals Charge
+            <span className="font-semibold tracking-[-0.026em] text-[0.9375rem] leading-none truncate min-w-0">
+              {/* Under 360px there is not room for the full name beside the
+                  menu button — a shorter mark rather than a clipped one. */}
+              <span className="hidden min-[360px]:inline">What Virginia Hospitals Charge</span>
+              <span className="min-[360px]:hidden">VA Hospital Charges</span>
             </span>
           </Link>
 
@@ -64,7 +67,8 @@ export default function Nav() {
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-label={open ? 'Close menu' : 'Open menu'}
-            className="flex items-center gap-2.5 text-[0.8125rem] font-semibold tracking-[-0.01em] py-2 -mr-1"
+            className="flex items-center justify-center gap-2.5 text-[0.8125rem] font-semibold tracking-[-0.01em]
+                       min-h-11 min-w-11 shrink-0 -mr-2 px-2"
           >
             {open ? 'Close' : 'Menu'}
             <span className="grid gap-[5px]" aria-hidden="true">

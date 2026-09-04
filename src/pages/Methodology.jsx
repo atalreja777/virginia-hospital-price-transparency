@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Reveal from '../components/Reveal.jsx';
 import { loadMeta } from '../lib/data.js';
+import useDocumentMeta from '../lib/useDocumentMeta.js';
 
 export default function Methodology() {
+  useDocumentMeta(
+    'Method',
+    'How this data was gathered, how bad prices are filtered out, and what a price comparison '
+    + 'like this one cannot tell you.',
+  );
   const [meta, setMeta] = useState(null);
   useEffect(() => { loadMeta().then(setMeta).catch(() => {}); }, []);
 
@@ -75,7 +81,7 @@ export default function Methodology() {
               h: 'Privacy',
               p: [
                 'There is no account, no server, and no database call. Every price is a static file your browser downloads, and all filtering and arithmetic happens on your device.',
-                'Your ZIP code, your insurer, your deductible and everything else you type stays in your browser. None of it is sent anywhere or stored.',
+                'Benefit values stay in this browser and are not sent to an application server. ZIP and radius appear in the page link only if you copy a link with them. Fonts and map tiles load from third parties.',
               ],
             },
           ].map((s, i) => (

@@ -21,6 +21,7 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
   const [q, setQ] = useState('');
   const [index, setIndex] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
@@ -33,7 +34,11 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
   const ensureIndex = () => {
     if (index || loading) return;
     setLoading(true);
-    loadSearch().then(setIndex).catch(() => {}).finally(() => setLoading(false));
+    setLoadError(null);
+    loadSearch()
+      .then(setIndex)
+      .catch((e) => setLoadError(e?.message || 'The procedure list could not be loaded.'))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { if (autoFocus) inputRef.current?.focus(); }, [autoFocus]);
@@ -44,12 +49,25 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
+  const showingQuickPicks = q.trim().length < 2;
+
   const results = useMemo(() => {
-    if (!index || q.trim().length < 2) return [];
+    if (!index || showingQuickPicks) return [];
     return searchProcedures(index, q, 24);
-  }, [index, q]);
+  }, [index, q, showingQuickPicks]);
+
+  const activeList = showingQuickPicks ? SUGGESTED : results;
+  const activeId = activeList.length && active < activeList.length
+    ? `${listId}-opt-${showingQuickPicks ? 'quick' : 'row'}-${active}`
+    : undefined;
 
   useEffect(() => setActive(0), [q]);
+
+  // Keep the highlighted option on screen as arrow keys move past it.
+  useEffect(() => {
+    if (!open || !activeId) return;
+    document.getElementById(activeId)?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeId]);
 
   // Carry the current ZIP and radius across, so switching procedure from the
   // results page keeps the search you already set up — and the new URL stays
@@ -63,13 +81,15 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
   };
 
   const onKey = (e) => {
-    if (!open || !results.length) {
+    if (!open) {
       if (e.key === 'ArrowDown') { setOpen(true); ensureIndex(); }
       return;
     }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(results.length - 1, i + 1)); }
+    const list = activeList;
+    if (!list.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(list.length - 1, i + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(0, i - 1)); }
-    else if (e.key === 'Enter') { e.preventDefault(); go(results[active]); }
+    else if (e.key === 'Enter') { e.preventDefault(); go(list[active]); }
     else if (e.key === 'Escape') { setOpen(false); inputRef.current?.blur(); }
   };
 
@@ -93,9 +113,10 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
           onKeyDown={onKey}
           type="search"
           role="combobox"
-          aria-expanded={open && results.length > 0}
+          aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
+          aria-activedescendant={open ? activeId : undefined}
           aria-label="Search for a procedure by name or billing code"
           placeholder="Try “MRI”, “colonoscopy”, or a code like 45378"
           className={`w-full h-full bg-transparent outline-none tracking-[-0.015em]
@@ -111,30 +132,47 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
           className={`absolute z-[60] mt-2 left-0 w-full sm:min-w-[38rem] sm:max-w-[min(46rem,92vw)] rounded-[16px] overflow-hidden shadow-[0_20px_60px_-12px_rgb(20_18_15/0.35)]
             ${dark ? 'bg-ink-2 border border-hair' : 'bg-card border border-rule'}`}
         >
-          {q.trim().length < 2 ? (
+          {showingQuickPicks ? (
             <div className="p-4">
               <p className="t-label opacity-45 px-2 pb-3">Commonly searched</p>
               <div className="flex flex-wrap gap-1.5">
-                {SUGGESTED.map((s) => (
+                {SUGGESTED.map((s, i) => (
                   <button
                     key={s.code}
+                    id={`${listId}-opt-quick-${i}`}
+                    role="option"
+                    aria-selected={i === active}
+                    onMouseEnter={() => setActive(i)}
                     onMouseDown={(e) => { e.preventDefault(); go(s); }}
+                    onClick={() => go(s)}
                     className={`px-3 py-1.5 rounded-full text-[0.8125rem] font-medium transition-colors
-                      ${dark ? 'bg-ink-3 hover:bg-hair' : 'bg-paper-2 hover:bg-paper-3'}`}
+                      ${i === active ? (dark ? 'bg-hair' : 'bg-paper-3') : (dark ? 'bg-ink-3 hover:bg-hair' : 'bg-paper-2 hover:bg-paper-3')}`}
                   >
                     {s.label}
                   </button>
                 ))}
               </div>
             </div>
-          ) : !index ? (
+          ) : loadError ? (
+            <div className="px-5 py-6">
+              <p className="t-body">The procedure list could not be loaded.</p>
+              <p className="t-small opacity-60 mt-2">{loadError}</p>
+              <button
+                type="button"
+                onClick={ensureIndex}
+                className={`btn mt-3 !py-2 !px-4 !text-[0.8125rem] ${dark ? 'btn-ghost border-hair' : 'btn-ink'}`}
+              >
+                Retry
+              </button>
+            </div>
+          ) : loading || !index ? (
             <div className="px-5 py-6 t-small opacity-55">Loading the procedure list…</div>
           ) : results.length === 0 ? (
             <div className="px-5 py-6">
-              <p className="t-body">No procedure matches “{q}”.</p>
+              <p className="t-body">No confident match for “{q}”.</p>
               <p className="t-small opacity-60 mt-2">
-                Try a shorter word, or enter the CPT code from your doctor's order.
-                Emergency and ambulance codes are not included, because you cannot shop for those.
+                Try a procedure name or a CPT/HCPCS/DRG code. Emergency and ambulance codes are
+                not included, because you cannot shop for those.
               </p>
             </div>
           ) : (
@@ -142,6 +180,7 @@ export default function SearchBox({ dark = false, autoFocus = false, size = 'lg'
               {results.map((r, i) => (
                 <li key={`${r.type}-${r.code}`}>
                   <button
+                    id={`${listId}-opt-row-${i}`}
                     role="option"
                     aria-selected={i === active}
                     onMouseEnter={() => setActive(i)}

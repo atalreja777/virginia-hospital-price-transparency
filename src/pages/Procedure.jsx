@@ -1,11 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   loadCode, loadHospitals, loadPayers, loadPlans, loadSettings, loadMethods, loadZips,
-  loadSearch, loadPayerGroups,
+  loadSearch, loadPayerGroups, hasNewBuild,
 } from '../lib/data.js';
 import { estimate, emptyBenefits, fmtUSD } from '../lib/estimate.js';
 import { withDistance, zipToPoint, isValidZip, approxRoadMiles } from '../lib/geo.js';
+import useDocumentMeta from '../lib/useDocumentMeta.js';
 import InsuranceWizard from '../components/InsuranceWizard.jsx';
 import InsuranceCue from '../components/InsuranceCue.jsx';
 import PriceDistanceChart from '../components/PriceDistanceChart.jsx';
@@ -18,6 +19,22 @@ const HospitalMap = lazy(() => import('../components/HospitalMap.jsx'));
 const RADII = [10, 25, 50, 100, 0];
 const radiusLabel = (r) => (r === 0 ? 'Anywhere in Virginia' : `${r} miles`);
 
+/** Only mount the map once its container is actually about to be seen. */
+function useInView(ref) {
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    if (inView || !ref.current) return;
+    if (typeof IntersectionObserver === 'undefined') { setInView(true); return; }
+    const obs = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) { setInView(true); obs.disconnect(); } },
+      { rootMargin: '200px' },
+    );
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [inView, ref]);
+  return inView;
+}
+
 export default function Procedure() {
   const { type, code } = useParams();
   const [params, setParams] = useSearchParams();
@@ -28,6 +45,9 @@ export default function Procedure() {
   const [zips, setZips] = useState(null);
   const [error, setError] = useState(null);
 
+  // Read once on arrival; the URL is not kept in sync automatically after
+  // that, so typing a ZIP never publishes it to the address bar without
+  // being asked to (see the "copy link with my ZIP" control below).
   const [zip, setZip] = useState(params.get('zip') || '');
   const [radius, setRadius] = useState(Number(params.get('r') ?? 50));
   const [brand, setBrand] = useState(null);          // carrier group, e.g. "Aetna"
@@ -39,31 +59,81 @@ export default function Procedure() {
   const [selected, setSelected] = useState(null);
   const [sort, setSort] = useState('price');
   const [showMap, setShowMap] = useState(true);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const closeIns = useCallback(() => setInsOpen(false), []);
+  const openIns = useCallback(() => setInsOpen(true), []);
+  const mapWrapRef = useRef(null);
+  const mapInView = useInView(mapWrapRef);
 
   useEffect(() => {
+    // `alive` — not a real network abort — is what actually has to protect
+    // this: loadCode shares a memoised fetch per shard file across every
+    // caller (two neighbouring codes, e.g. "with contrast" / "without
+    // contrast", often live in the same shard), so aborting the underlying
+    // request on route change would cancel it out from under a different
+    // code's in-flight request too. Ignoring a stale response once it
+    // arrives is what keeps a fast route change from painting the wrong
+    // procedure; the timeout below is what keeps a hung request from
+    // spinning forever.
     let alive = true;
     setData(null); setError(null);
-    Promise.all([
-      loadCode(type, code), loadHospitals(), loadPayers(), loadPlans(),
-      loadSettings(), loadMethods(), loadZips(), loadSearch(), loadPayerGroups(),
+
+    const timeout = new Promise((_, reject) => {
+      setTimeout(() => reject(Object.assign(new Error('Timed out waiting for the price data.'), { name: 'TimeoutError' })), 15000);
+    });
+
+    Promise.race([
+      Promise.all([
+        loadCode(type, code), loadHospitals(), loadPayers(), loadPlans(),
+        loadSettings(), loadMethods(), loadZips(), loadSearch(), loadPayerGroups(),
+      ]),
+      timeout,
     ])
       .then(([d, h, payers, plans, settings, methods, z, idx, pg]) => {
         if (!alive) return;
-        if (!d) { setError('notfound'); return; }
+        if (d.status === 'absent') { setError({ kind: 'absent' }); return; }
         setData(d); setHospitals(h); setZips(z);
         setDicts({ payers, plans, settings, methods, index: idx, payerGroups: pg });
       })
-      .catch((e) => alive && setError(e.message || 'load'));
+      .catch((e) => {
+        if (!alive) return;
+        const id = Date.now().toString(36).slice(-6);
+        const message = e?.message || 'The price data could not be loaded.';
+        // A 404 on a file this build's index says should exist is exactly what
+        // happens when a new deploy has removed or renamed shards underneath
+        // an already-open tab. Worth a different prompt than "try again",
+        // since "try again" on the same stale tab would just repeat it.
+        (e?.status === 404 ? hasNewBuild() : Promise.resolve(false)).then((stale) => {
+          if (!alive) return;
+          setError({ kind: 'error', id, message, stale });
+        });
+      });
     return () => { alive = false; };
   }, [type, code]);
 
-  // keep the URL shareable
-  useEffect(() => {
+  const copyShareLink = async () => {
     const next = new URLSearchParams(params);
     zip ? next.set('zip', zip) : next.delete('zip');
-    next.set('r', String(radius));
-    setParams(next, { replace: true });
-  }, [zip, radius]); // eslint-disable-line react-hooks/exhaustive-deps
+    radius ? next.set('r', String(radius)) : next.delete('r');
+    const qs = next.toString();
+    const shareUrl = `${location.origin}${location.pathname}${qs ? `?${qs}` : ''}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+    } catch {
+      setParams(next, { replace: true }); // clipboard unavailable — fall back to a shareable address bar
+    }
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  useDocumentMeta(
+    data ? (data.desc || `${type} ${code}`) : undefined,
+    data
+      ? `${data.desc || `${type} code ${code}`}: compare published prices across Virginia hospitals `
+        + 'and get a planning estimate from your insurance benefits.'
+      : undefined,
+  );
 
   const origin = useMemo(() => (zips && isValidZip(zip) ? zipToPoint(zips, zip) : null), [zips, zip]);
 
@@ -104,7 +174,7 @@ export default function Procedure() {
         ...h,
         ccn: info.ccn, name: info.name, city: info.city, address: info.address,
         zip: info.zip, lat: info.lat, lon: info.lon, ownership: info.ownership,
-        sources: info.sources || [],
+        sources: info.sources || [], locationSrc: info.src,
         matching, prices, median,
         low: prices[0] ?? null,
         high: prices[prices.length - 1] ?? null,
@@ -155,19 +225,27 @@ export default function Procedure() {
     if (hi === lo) return 2;
     return Math.min(4, Math.max(0, Math.floor(((price - lo) / (hi - lo)) * 5)));
   };
-  const usingBenefits = benefits.deductible > 0 || benefits.copay != null || benefits.outOfPocketMax > 0;
+  // Any known cost-sharing input is enough to attempt an estimate — a $0
+  // deductible with 30% coinsurance is a complete, known plan, not "nothing
+  // entered". estimate() itself decides whether what is known is enough to
+  // produce a number, or whether to report what is still missing.
+  const usingBenefits = benefits.deductible != null || benefits.coinsurance != null
+    || benefits.copay != null || (benefits.outOfPocketMax != null && benefits.outOfPocketMax > 0);
 
-  /* What the entered benefits mean in money, shown in the wizard's last step
-     and in the corner card. Null until there is enough to say anything. */
-  const previewNumbers = usingBenefits && cheapest && dearest
+  /* What the entered benefits mean in money, shown in the corner card. Null
+     until there is a price to estimate against and nothing is still unknown. */
+  const cheapestEst = cheapest ? est(cheapest.median) : null;
+  const dearestEst = dearest ? est(dearest.median) : null;
+  const previewNumbers = usingBenefits && cheapestEst && dearestEst
+    && !cheapestEst.missing.length && !dearestEst.missing.length
     ? {
-        cheapest: est(cheapest.median).patient,
-        dearest: est(dearest.median).patient,
-        saving: est(dearest.median).patient - est(cheapest.median).patient,
+        cheapest: cheapestEst.patient,
+        dearest: dearestEst.patient,
+        saving: dearestEst.patient - cheapestEst.patient,
       }
     : null;
 
-  if (error === 'notfound') {
+  if (error?.kind === 'absent') {
     return (
       <div className="max-w-2xl mx-auto px-6 pt-40 pb-28">
         <p className="t-label opacity-45">No prices published</p>
@@ -181,12 +259,17 @@ export default function Procedure() {
       </div>
     );
   }
-  if (error) {
+  if (error?.kind === 'error') {
     return (
       <div className="max-w-2xl mx-auto px-6 pt-40 pb-28">
-        <h1 className="t-title">The price data would not load.</h1>
-        <p className="t-body mt-4 opacity-70">{error}</p>
-        <button className="btn btn-ink mt-6" onClick={() => location.reload()}>Try again</button>
+        <h1 className="t-title">The price data could not be loaded.</h1>
+        <p className="t-body mt-4 opacity-70">
+          {error.stale
+            ? 'This site was updated since this page loaded, and this tab is looking for a file that no longer exists at that address. Reloading gets the current version.'
+            : 'This is a static file that did not download — not a finding about the procedure. Reloading usually fixes it.'}
+        </p>
+        <p className="t-small opacity-45 mt-2">Error id {error.id}</p>
+        <button className="btn btn-ink mt-6" onClick={() => window.location.reload()}>Retry</button>
       </div>
     );
   }
@@ -267,6 +350,12 @@ export default function Procedure() {
             />
           </div>
 
+          {zip && (
+            <button onClick={copyShareLink} className="chip" type="button">
+              {linkCopied ? 'Link copied' : 'Copy link with my ZIP'}
+            </button>
+          )}
+
           <div className="flex items-center gap-1.5">
             {RADII.map((r) => (
               <button key={r} onClick={() => setRadius(r)} data-on={radius === r} className="chip"
@@ -319,7 +408,7 @@ export default function Procedure() {
                 </button>
               ))}
             </div>
-            <button onClick={() => setInsOpen(true)} className="btn btn-ghost !py-2 !px-4 !text-[0.8125rem]">
+            <button onClick={openIns} className="btn btn-ghost !py-2 !px-4 !text-[0.8125rem]">
               {brand || usingBenefits ? 'Change insurance' : 'Add your insurance'}
             </button>
           </div>
@@ -380,15 +469,15 @@ export default function Procedure() {
 
         {/* insurance, as a guided flow rather than a wall of fields */}
         <InsuranceWizard
-          open={insOpen} onClose={() => setInsOpen(false)}
+          open={insOpen} onClose={closeIns}
           carriers={carriers} plans={dicts.plans} availablePlans={availablePlans}
           brand={brand} planId={planId}
           onBrand={(v) => { setBrand(v); setPlanId(null); }} onPlan={setPlanId}
           benefits={benefits} onBenefits={setBenefits}
-          preview={previewNumbers}
+          cheapestMedian={cheapest?.median ?? null} dearestMedian={dearest?.median ?? null}
         />
         <InsuranceCue
-          onOpen={() => setInsOpen(true)}
+          onOpen={openIns}
           brand={brand}
           hasBenefits={usingBenefits}
           preview={previewNumbers}
@@ -397,15 +486,19 @@ export default function Procedure() {
         {/* map */}
         <div className={`order-1 lg:order-2 ${showMap ? '' : 'hidden lg:block'}`}>
           <div className="lg:sticky lg:top-[8.5rem]">
-            <div className="panel overflow-hidden h-[22rem] lg:h-[calc(100vh-11rem)]">
-              <Suspense fallback={<div className="w-full h-full shimmer" />}>
-                <HospitalMap
-                  items={rows.filter((r) => r.median != null)}
-                  origin={origin} radiusMiles={radius || null}
-                  selected={selected} onSelect={setSelected}
-                  priceKey="median"
-                />
-              </Suspense>
+            <div ref={mapWrapRef} className="panel overflow-hidden h-[22rem] lg:h-[calc(100vh-11rem)]">
+              {mapInView ? (
+                <Suspense fallback={<div className="w-full h-full shimmer" />}>
+                  <HospitalMap
+                    items={rows.filter((r) => r.median != null)}
+                    origin={origin} radiusMiles={radius || null}
+                    selected={selected} onSelect={setSelected}
+                    priceKey="median"
+                  />
+                </Suspense>
+              ) : (
+                <div className="w-full h-full shimmer" />
+              )}
             </div>
             <p className="t-small opacity-50 mt-2.5">
               Pins show each hospital's median negotiated price. Colour runs from the cheapest

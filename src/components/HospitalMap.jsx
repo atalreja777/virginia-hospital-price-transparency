@@ -160,23 +160,31 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
       const band = bandFor(price, lo, hi);
       const colour = SCALE[band];
       const asDot = !isSel && collides(it);
+      // A ZIP-centroid pin is not the hospital's real address — it is where
+      // its ZIP code happens to be centered — so it needs to read differently
+      // on the map, not just in a tooltip nobody opens.
+      const approx = it.locationSrc === 'zip-centroid';
+      const label = `${it.name}${price != null ? `, ${fmtUSD(price, { round: true })}` : ''}`
+        + (approx ? ' (approximate location — ZIP-center pin, not the exact address)' : '');
 
       const node = document.createElement('button');
       node.type = 'button';
-      node.setAttribute('aria-label', `${it.name}${price != null ? `, ${fmtUSD(price, { round: true })}` : ''}`);
+      node.setAttribute('aria-label', label);
+      if (approx) node.title = 'Approximate location — pinned at the ZIP-code center, not the exact address';
 
+      const dashed = approx ? 'border-style:dashed;' : '';
       if (asDot) {
         node.style.cssText = `
           width:11px;height:11px;border-radius:50%;cursor:pointer;padding:0;
-          background:${colour};border:1.5px solid #FFFDF9;
+          background:${colour};border:1.5px solid #FFFDF9;${dashed}
           box-shadow:0 1px 4px rgba(0,0,0,.28);transition:transform .16s cubic-bezier(.16,1,.3,1);`;
       } else {
-        node.textContent = price != null ? fmtUSD(price, { round: true }) : '—';
+        node.textContent = (price != null ? fmtUSD(price, { round: true }) : '—') + (approx ? ' ~' : '');
         node.style.cssText = `
-          font:500 11px/1 "Geist Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+          font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;
           letter-spacing:-0.02em;padding:5px 7px;border-radius:2px;cursor:pointer;white-space:nowrap;
           color:#fff;background:${colour};
-          border:${isSel ? '2px solid #0B0B0C' : '1px solid rgba(255,255,255,.9)'};
+          border:${isSel ? '2px solid #0B0B0C' : '1px solid rgba(255,255,255,.9)'};${dashed}
           box-shadow:${isSel ? '0 4px 14px rgba(0,0,0,.34)' : '0 1px 5px rgba(0,0,0,.24)'};
           transition:transform .16s cubic-bezier(.16,1,.3,1);
           z-index:${isSel ? 10 : 1};`;
@@ -219,15 +227,24 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
     );
   }
 
+  const hasApprox = items.some((i) => i.locationSrc === 'zip-centroid');
+
   return (
     <div className="relative w-full h-full">
       <div ref={el} className="w-full h-full bg-paper-2 [&_canvas]:saturate-[.55]" role="application" aria-label="Map of hospitals with published prices" />
       {/* Bottom-right: pins cluster centre-left and the attribution owns bottom-left. */}
-      <div className="absolute right-3 bottom-8 bg-card/95 backdrop-blur border rule rounded-full px-3 py-1.5 pointer-events-none shadow-[0_2px_10px_rgb(20_18_15/0.10)]">
-        <div className="flex items-center gap-1.5">
-          <span className="t-small opacity-55 text-[0.6875rem]">cheaper</span>
-          {SCALE.map((c) => <span key={c} className="w-3.5 h-2 rounded-[1px]" style={{ background: c }} />)}
-          <span className="t-small opacity-55 text-[0.6875rem]">dearer</span>
+      <div className="absolute right-3 bottom-8 flex flex-col items-end gap-1.5">
+        {hasApprox && (
+          <div className="bg-card/95 backdrop-blur border rule rounded-full px-3 py-1 pointer-events-none shadow-[0_2px_10px_rgb(20_18_15/0.10)]">
+            <span className="t-small opacity-55 text-[0.6875rem]">~ dashed pin: approximate (ZIP-center) location</span>
+          </div>
+        )}
+        <div className="bg-card/95 backdrop-blur border rule rounded-full px-3 py-1.5 pointer-events-none shadow-[0_2px_10px_rgb(20_18_15/0.10)]">
+          <div className="flex items-center gap-1.5">
+            <span className="t-small opacity-55 text-[0.6875rem]">cheaper</span>
+            {SCALE.map((c) => <span key={c} className="w-3.5 h-2 rounded-[1px]" style={{ background: c }} />)}
+            <span className="t-small opacity-55 text-[0.6875rem]">dearer</span>
+          </div>
         </div>
       </div>
     </div>

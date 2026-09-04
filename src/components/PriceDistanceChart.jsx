@@ -154,7 +154,7 @@ export default function PriceDistanceChart({ rows, onSelect, selected, estimateF
               <div className="font-semibold tracking-[-0.016em] truncate">{titleCase(shown.name)}</div>
               <div className="t-small opacity-55 mt-0.5">
                 {titleCase(shown.city)} · <span className="tabular-nums">{shown.miles.toFixed(0)} mi</span>
-                <span className="opacity-70"> ({approxRoadMiles(shown.miles).toFixed(0)} driving)</span>
+                <span className="opacity-70"> (approx. {approxRoadMiles(shown.miles).toFixed(0)} road miles — straight line × 1.25)</span>
               </div>
             </div>
             <div className="t-num text-[1.5rem]" style={{ color: SCALE[shown.band] }}>

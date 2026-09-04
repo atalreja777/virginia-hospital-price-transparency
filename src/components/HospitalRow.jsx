@@ -57,7 +57,7 @@ export default function HospitalRow({
               {titleCase(row.city)}
               {showDistance && row.miles != null && (
                 <> · <span className="tabular-nums">{row.miles.toFixed(0)} mi</span>
-                  <span className="opacity-70"> ({approxRoadMiles(row.miles).toFixed(0)} driving)</span></>
+                  <span className="opacity-70"> (approx. {approxRoadMiles(row.miles).toFixed(0)} road miles — straight line × 1.25)</span></>
               )}
             </span>
           </span>
@@ -167,8 +167,9 @@ export default function HospitalRow({
               </div>
               <RateSpark prices={row.prices} colour={colour} />
               <p className="t-small opacity-45 -mt-1">
-                Each tick is one insurance plan. Bunched together means this hospital charges
-                everyone about the same; spread out means what you pay depends on your insurer.
+                Each tick is one published price entry; a plan can appear more than once. Bunched
+                together means this hospital charges everyone about the same; spread out means
+                what you pay depends on your insurer.
               </p>
             </div>
           )}

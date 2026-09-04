@@ -36,7 +36,7 @@ export default function InsuranceCue({ onOpen, brand, preview, hasBenefits }) {
 
   return (
     <div
-      className={`fixed z-50 right-4 bottom-4 sm:right-6 sm:bottom-6 w-[min(21rem,calc(100vw-2rem))] no-print
+      className={`fixed z-50 right-4 bottom-16 sm:right-6 sm:bottom-20 w-[min(21rem,calc(100vw-2rem))] no-print
                   transition-all duration-500 ${shown || configured ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'}`}
       style={{ transitionTimingFunction: 'cubic-bezier(.16,1,.3,1)' }}
     >

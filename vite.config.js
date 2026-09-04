@@ -19,6 +19,14 @@ export default defineConfig({
         },
       },
     },
+    modulePreload: {
+      // The map chunk is 1MB+ of MapLibre and is only ever needed once a
+      // hospital map actually mounts (Procedure.jsx loads it lazily and only
+      // once its container is in view). Without this, Vite's default
+      // modulepreload polyfill still preloads every chunk reachable from the
+      // entry point on every route, including this one.
+      resolveDependencies: (_filename, deps) => deps.filter((d) => !d.includes('/map-')),
+    },
   },
   test: {
     environment: 'node',

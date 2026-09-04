@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Reveal from '../components/Reveal.jsx';
 import MoneyInput from '../components/MoneyInput.jsx';
 import { estimate, emptyBenefits, fmtUSD } from '../lib/estimate.js';
+import useDocumentMeta from '../lib/useDocumentMeta.js';
 
 const TERMS = [
   {
@@ -80,6 +81,11 @@ const TERMS = [
 ];
 
 export default function Insurance() {
+  useDocumentMeta(
+    'Insurance terms',
+    'Deductible, coinsurance, copay and out-of-pocket maximum, explained in plain English with an '
+    + 'interactive calculator and where to find each number on your plan.',
+  );
   const [b, setB] = useState(() => ({ ...emptyBenefits(), deductible: 200000, coinsurance: 0.2, outOfPocketMax: 800000 }));
   const [price, setPrice] = useState(500000);
   const r = estimate(price, b);

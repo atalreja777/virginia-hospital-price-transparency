@@ -4,6 +4,7 @@ import Reveal from '../components/Reveal.jsx';
 import SpreadBar from '../components/SpreadBar.jsx';
 import Loading from '../components/Loading.jsx';
 import { fmtUSD } from '../lib/estimate.js';
+import useDocumentMeta from '../lib/useDocumentMeta.js';
 
 const BASE = import.meta.env.BASE_URL || '/';
 
@@ -20,6 +21,11 @@ function Stat({ value, label, note, accent }) {
 }
 
 export default function Statistics() {
+  useDocumentMeta(
+    'The numbers',
+    'What the published files show about Virginia hospital prices: price spreads, cash-versus-'
+    + 'insured comparisons, and which hospitals published nothing usable.',
+  );
   const [s, setS] = useState(null);
   const [err, setErr] = useState(null);
   useEffect(() => {
@@ -134,12 +140,13 @@ export default function Statistics() {
             <div>
               <Reveal as="p" className="t-label opacity-45">Insurance is not always cheaper</Reveal>
               <Reveal as="h2" className="t-display mt-5" delay={60}>
-                {Math.round(s.cash.share * 100)}% of the time,<br />cash beats insured.
+                In {Math.round(s.cash.share * 100)}% of analyzed<br />hospital/procedure pairs, cash beat insured.
               </Reveal>
               <Reveal as="p" className="t-body mt-6 opacity-75 max-w-[46ch]" delay={110}>
                 Across {s.cash.comparisons.toLocaleString()} hospital and procedure combinations
                 where both numbers were published, the discounted cash price was lower than the
-                hospital's median negotiated rate.
+                hospital's median negotiated price.{' '}
+                <Link to="/methodology" className="link-draw">How this was compared</Link>.
               </Reveal>
               <Reveal as="p" className="t-small mt-5 opacity-60 max-w-[48ch]" delay={150}>
                 This matters most for people with high deductibles, who pay the full negotiated rate
