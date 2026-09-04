@@ -144,3 +144,96 @@ describe('formatting', () => {
     expect(fmtUSD(null)).toBe('—');
   });
 });
+
+describe('unknown benefits', () => {
+  it('a fresh, untouched plan has no invented coinsurance', () => {
+    expect(emptyBenefits().coinsurance).toBe(null);
+  });
+
+  it('reports what is missing instead of a number when coinsurance is unknown', () => {
+    const r = estimate($(1000), base({ deductible: 0, coinsurance: null, copay: null }));
+    expect(r.patient).toBe(null);
+    expect(r.plan).toBe(null);
+    expect(r.missing).toContain('coinsurance');
+  });
+
+  it('reports what is missing when the deductible is unknown', () => {
+    const r = estimate($(1000), base({ deductible: null, coinsurance: 0.2, copay: null }));
+    expect(r.missing).toContain('deductible');
+  });
+
+  it('a copay that waives the deductible needs nothing else', () => {
+    const r = estimate($(900), base({ deductible: null, coinsurance: null, copay: $(40), copayWaivesDeductible: true }));
+    expect(r.missing).toEqual([]);
+    expect(r.patient).toBe($(40));
+  });
+
+  it('an HDHP-style copay still needs the deductible and coinsurance', () => {
+    const r = estimate($(900), base({ deductible: null, coinsurance: null, copay: $(40), copayWaivesDeductible: false }));
+    expect(r.missing.sort()).toEqual(['coinsurance', 'deductible']);
+  });
+
+  it('being already at the out-of-pocket maximum answers zero even with unknown coinsurance', () => {
+    const r = estimate($(1000), base({ deductible: null, coinsurance: null, outOfPocketMax: $(500), outOfPocketMet: $(500) }));
+    expect(r.patient).toBe(0);
+    expect(r.missing).toEqual([]);
+  });
+});
+
+describe('out-of-pocket maximum caps and reallocates', () => {
+  it('the concrete case: $1,000 allowed, $1,000 deductible, 20% coinsurance, $500 max', () => {
+    const r = estimate($(1000), base({ deductible: $(1000), coinsurance: 0.2, copay: null, outOfPocketMax: $(500) }));
+    expect(r.patient).toBe($(500));
+    expect(r.deductibleAfter).toBe($(500));
+    expect(r.cappedByOopMax).toBe(true);
+  });
+
+  it('components always sum to the patient total, capped or not', () => {
+    const cases = [
+      { allowed: $(1000), deductible: $(1000), coinsurance: 0.2, outOfPocketMax: $(500) },
+      { allowed: $(5000), deductible: $(500), coinsurance: 0.3, outOfPocketMax: $(800) },
+      { allowed: $(200), deductible: $(2000), coinsurance: 0.5, outOfPocketMax: 0 },
+      { allowed: $(1200), deductible: $(0), coinsurance: 0.1, outOfPocketMax: $(50) },
+    ];
+    for (const cse of cases) {
+      const r = estimate(cse.allowed, base({ ...cse, copay: null }));
+      expect(r.toDeductible + r.toCoinsurance + r.toCopay).toBe(r.patient);
+      expect(r.patient + r.plan).toBe(r.allowed);
+      if (cse.outOfPocketMax > 0) expect(r.patient).toBeLessThanOrEqual(cse.outOfPocketMax);
+    }
+  });
+
+  it('never lets the reported deductible progress exceed what was actually charged toward it', () => {
+    const r = estimate($(1000), base({ deductible: $(1000), coinsurance: 0.2, copay: null, outOfPocketMax: $(200) }));
+    expect(r.deductibleAfter).toBe(r.toDeductible);
+  });
+});
+
+describe('out of network', () => {
+  it('does not inherit the in-network out-of-pocket maximum', () => {
+    const r = estimate($(10000), base({
+      inNetwork: false, deductible: 0, coinsurance: 0.5, copay: null,
+      outOfPocketMax: $(100), outOfPocketMet: $(100),
+    }));
+    // The in-network max is already met, but out of network that figure must
+    // not apply — nothing was supplied for oonOutOfPocketMax, so it is unknown.
+    expect(r.cappedByOopMax).toBe(false);
+    expect(r.patient).toBe($(5000));
+  });
+
+  it('uses an explicit out-of-network maximum when given one', () => {
+    const r = estimate($(10000), base({
+      inNetwork: false, deductible: 0, coinsurance: 0.5, copay: null,
+      oonOutOfPocketMax: $(100), oonOutOfPocketMet: 0,
+    }));
+    expect(r.cappedByOopMax).toBe(true);
+    expect(r.patient).toBe($(100));
+  });
+
+  it('still notes the out-of-network caveat on the already-met early return', () => {
+    const r = estimate($(1000), base({
+      inNetwork: false, outOfPocketMax: $(500), outOfPocketMet: $(500),
+    }));
+    expect(r.notes.join(' ')).toMatch(/out of network/i);
+  });
+});
