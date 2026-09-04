@@ -9,3 +9,11 @@ pipeline/raw/
 pipeline/*.log
 pipeline/zcta.zip
 pipeline/*_Gaz_zcta_national.txt
+
+# Release candidates: a build's own copy of the export, the dataset, its logs
+# and its release record. The promoted dataset lives in public/data; this is the
+# working directory it was assembled in.
+pipeline/out/
+
+# The dataset a release replaced, kept until the site has been verified.
+public/data.prev-*
