@@ -177,6 +177,12 @@ REJECTED_PRED="$(flatten "$REJECTED_PRED")"
 say "exporting $SCOPE_NOTE ($N_HOSP hospitals) -> $OUT"
 echo "     rejected_at=$HAS_REJECTED source_row_ref=$HAS_SOURCE_ROW_REF generic_notes=$HAS_GENERIC_NOTES dup_count=$HAS_DUP_COUNT entry_hash=$HAS_ENTRY_HASH derived_basis=$HAS_DERIVED_BASIS"
 
+
+# Staged columns: only what the per-hospital statements read. Staging r.* from
+# the release view would carry URLs, hashes and names on every one of ~35M rows.
+R_COLS="r.hospital_id, r.file_version_id, r.item_id, r.payer_id, r.plan_id, r.methodology_id, r.negotiated_dollar, r.negotiated_percentage, r.negotiated_algorithm, r.estimated_amount, r.median_amount, r.p10_amount, r.p90_amount, r.count_raw, r.additional_notes, r.quality_labels, r.derived_dollar$([ "$HAS_DERIVED_BASIS" = 1 ] && echo ", r.derived_basis")"
+I_COLS="i.hospital_id, i.file_version_id, i.item_id, i.description_raw, i.setting, i.billing_class, i.modifiers, i.drug_unit, i.drug_type, i.gross_charge, i.discounted_cash, i.min_negotiated, i.max_negotiated, i.quality_labels$([ "$HAS_SOURCE_ROW_REF" = 1 ] && echo ", i.source_row_ref")$([ "$HAS_GENERIC_NOTES" = 1 ] && echo ", i.generic_notes")$([ "$HAS_DUP_COUNT" = 1 ] && echo ", i.dup_count")"
+C_COLS="ic.hospital_id, ic.item_id, ic.code_type_norm, ic.code_norm"
 SQL="$(mktemp -t hpt_export.XXXXXX).sql"
 trap 'rm -f "$SQL"' EXIT
 
@@ -185,6 +191,15 @@ cat <<SQLEOF
 \set ON_ERROR_STOP on
 SET statement_timeout = '$TIMEOUT';
 SET idle_in_transaction_session_timeout = '3600s';
+-- Temp tables must exist BEFORE the read-only snapshot: CREATE is refused
+-- inside a READ ONLY transaction, but INSERT into an existing temp table is
+-- allowed. Shapes are copied from the source relations with WHERE false.
+CREATE TEMP TABLE x_rates AS SELECT $R_COLS FROM $RATES_SRC WHERE false;
+CREATE TEMP TABLE x_items AS SELECT $I_COLS FROM $ITEMS_SRC WHERE false;
+CREATE TEMP TABLE x_codes AS SELECT $C_COLS FROM item_codes ic WHERE false;
+CREATE INDEX ON x_rates (hospital_id, item_id);
+CREATE INDEX ON x_items (hospital_id, item_id);
+CREATE INDEX ON x_codes (hospital_id, item_id);
 SET default_transaction_read_only = on;
 BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 
@@ -206,16 +221,37 @@ BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 \copy (SELECT methodology_id, methodology FROM methodologies ORDER BY methodology_id) TO '$OUT/methodologies.csv' CSV HEADER
 SQLEOF
 
-# One statement per hospital: each prunes to that hospital's partitions and
-# finishes well inside the statement timeout.
+# ---------------------------------------------------------------------------
+# Stage the state's slice ONCE. rates, items and item_codes are all hash-
+# partitioned by hospital_id with only primary-key indexes, so every
+# per-hospital statement below would otherwise rescan an ~800 MB partition
+# from disk; at five statements a hospital that is hundreds of gigabytes of
+# reads for one state. Three temp tables (allowed inside a READ ONLY
+# transaction), one pass each, then the loop runs against them. They live only
+# for this psql session and are never written back.
+# ---------------------------------------------------------------------------
+ORIG_RATES_SRC="$RATES_SRC"; ORIG_ITEMS_SRC="$ITEMS_SRC"
+cat <<SQLEOF
+\echo '  staging the $SCOPE_NOTE slice (one pass over each source relation)'
+SET statement_timeout = '${HPT_STAGING_TIMEOUT:-2400s}';
+INSERT INTO x_rates SELECT $R_COLS FROM $RATES_SRC WHERE r.hospital_id = $ARR $RATES_WHERE;
+INSERT INTO x_items SELECT $I_COLS FROM $ITEMS_SRC WHERE i.hospital_id = $ARR $ITEMS_WHERE;
+INSERT INTO x_codes SELECT $C_COLS FROM item_codes ic WHERE ic.hospital_id = $ARR;
+ANALYZE x_rates; ANALYZE x_items; ANALYZE x_codes;
+SELECT 'staged' AS stage, (SELECT count(*) FROM x_rates) AS rates, (SELECT count(*) FROM x_items) AS items, (SELECT count(*) FROM x_codes) AS codes;
+SET statement_timeout = '$TIMEOUT';
+SQLEOF
+RATES_SRC="x_rates r"; ITEMS_SRC="x_items i"; RATES_WHERE=""; ITEMS_WHERE=""; CODES="x_codes"
+
+# One statement per hospital, against the staged slice.
 for HID in $ID_LIST; do
   echo "\\echo '  hospital $HID'"
-  echo "\\copy (SELECT i.hospital_id, i.file_version_id, i.item_id, $SRC_ROW_REF, ic.code_type_norm AS code_type, ic.code_norm AS code, i.description_raw AS description, i.setting, i.billing_class, i.modifiers, i.drug_unit, i.drug_type, i.gross_charge AS gross, i.discounted_cash AS cash, i.min_negotiated AS min_negotiated, i.max_negotiated AS max_negotiated, $GENERIC_NOTES, $DUP_COUNT FROM $ITEMS_SRC JOIN item_codes ic ON ic.item_id = i.item_id AND ic.hospital_id = i.hospital_id WHERE i.hospital_id = $HID AND ic.hospital_id = $HID AND $SCOPE AND i.quality_labels = '{}' $ITEMS_WHERE) TO '$OUT/charges/$HID.csv' CSV HEADER"
-  echo "\\copy (SELECT r.hospital_id, r.file_version_id, r.item_id, ic.code_type_norm AS code_type, ic.code_norm AS code, i.setting, i.billing_class, i.modifiers, i.drug_unit, r.payer_id, r.plan_id, r.methodology_id, r.negotiated_dollar, r.negotiated_percentage, r.negotiated_algorithm, r.estimated_amount, r.median_amount, r.p10_amount, r.p90_amount, r.count_raw, r.additional_notes, $DERIVED_BASIS, array_to_string(r.quality_labels, ' ') AS quality_labels FROM $RATES_SRC JOIN $ITEMS_REL i ON i.item_id = r.item_id AND i.hospital_id = r.hospital_id AND i.file_version_id = r.file_version_id JOIN item_codes ic ON ic.item_id = i.item_id AND ic.hospital_id = i.hospital_id WHERE r.hospital_id = $HID AND i.hospital_id = $HID AND ic.hospital_id = $HID AND $SCOPE AND r.quality_labels = '{}' AND i.quality_labels = '{}' $RATES_WHERE) TO '$OUT/rates/$HID.csv' CSV HEADER"
+  echo "\\copy (SELECT i.hospital_id, i.file_version_id, i.item_id, $SRC_ROW_REF, ic.code_type_norm AS code_type, ic.code_norm AS code, i.description_raw AS description, i.setting, i.billing_class, i.modifiers, i.drug_unit, i.drug_type, i.gross_charge AS gross, i.discounted_cash AS cash, i.min_negotiated AS min_negotiated, i.max_negotiated AS max_negotiated, $GENERIC_NOTES, $DUP_COUNT FROM $ITEMS_SRC JOIN $CODES ic ON ic.item_id = i.item_id AND ic.hospital_id = i.hospital_id WHERE i.hospital_id = $HID AND ic.hospital_id = $HID AND $SCOPE AND i.quality_labels = '{}' $ITEMS_WHERE) TO '$OUT/charges/$HID.csv' CSV HEADER"
+  echo "\\copy (SELECT r.hospital_id, r.file_version_id, r.item_id, ic.code_type_norm AS code_type, ic.code_norm AS code, i.setting, i.billing_class, i.modifiers, i.drug_unit, r.payer_id, r.plan_id, r.methodology_id, r.negotiated_dollar, r.negotiated_percentage, r.negotiated_algorithm, r.estimated_amount, r.median_amount, r.p10_amount, r.p90_amount, r.count_raw, r.additional_notes, $DERIVED_BASIS, array_to_string(r.quality_labels, ' ') AS quality_labels FROM $RATES_SRC JOIN $ITEMS_REL i ON i.item_id = r.item_id AND i.hospital_id = r.hospital_id AND i.file_version_id = r.file_version_id JOIN $CODES ic ON ic.item_id = i.item_id AND ic.hospital_id = i.hospital_id WHERE r.hospital_id = $HID AND i.hospital_id = $HID AND ic.hospital_id = $HID AND $SCOPE AND r.quality_labels = '{}' AND i.quality_labels = '{}' $RATES_WHERE) TO '$OUT/rates/$HID.csv' CSV HEADER"
   # Stage counts: what the hospital published, before and after each filter, so
   # "no prices" can distinguish a hospital with no file from one whose file has
   # no comparable code in it at all.
-  echo "\\copy (WITH priced AS (SELECT DISTINCT r.item_id FROM $RATES_SRC WHERE r.hospital_id = $HID AND r.negotiated_dollar IS NOT NULL $RATES_WHERE), coded AS (SELECT DISTINCT ic.item_id FROM item_codes ic WHERE ic.hospital_id = $HID AND $SCOPE), it AS (SELECT count(*) AS items_total, count(*) FILTER (WHERE i.quality_labels = '{}') AS items_clean, count(*) FILTER (WHERE c.item_id IS NOT NULL) AS items_with_shoppable_code, count(*) FILTER (WHERE i.quality_labels = '{}' AND c.item_id IS NOT NULL) AS items_clean_shoppable, count(*) FILTER (WHERE i.discounted_cash IS NOT NULL) AS items_with_cash, count(*) FILTER (WHERE i.quality_labels = '{}' AND i.discounted_cash IS NOT NULL AND p.item_id IS NULL) AS cash_only_items FROM $ITEMS_SRC LEFT JOIN priced p ON p.item_id = i.item_id LEFT JOIN coded c ON c.item_id = i.item_id WHERE i.hospital_id = $HID $ITEMS_WHERE), ra AS (SELECT count(*) AS rates_total, count(*) FILTER (WHERE r.quality_labels = '{}') AS rates_clean, count(*) FILTER (WHERE r.quality_labels = '{}' AND r.negotiated_dollar IS NOT NULL) AS negotiated_dollar_rates, count(*) FILTER (WHERE r.negotiated_dollar IS NULL AND r.negotiated_percentage IS NOT NULL) AS percentage_only_rates, count(*) FILTER (WHERE r.negotiated_dollar IS NULL AND r.negotiated_percentage IS NULL AND (r.estimated_amount IS NOT NULL OR r.median_amount IS NOT NULL)) AS allowed_amount_rates, count(*) FILTER (WHERE r.negotiated_dollar IS NULL AND r.negotiated_percentage IS NULL AND r.negotiated_algorithm IS NOT NULL) AS algorithm_only_rates FROM $RATES_SRC WHERE r.hospital_id = $HID $RATES_WHERE) SELECT h.hospital_id, h.ccn, h.name, h.status, (SELECT count(*) FROM hospital_mrfs hm2 WHERE hm2.hospital_id = h.hospital_id) AS mrf_links, (SELECT count(*) FROM hospital_mrfs hm3 WHERE hm3.hospital_id = h.hospital_id $([ "$HAS_REJECTED" = 1 ] && echo "AND hm3.rejected_at IS NOT NULL" || echo "AND false")) AS mrf_links_rejected, it.*, ra.* FROM hospitals h, it, ra WHERE h.hospital_id = $HID) TO '$OUT/stage_counts/$HID.csv' CSV HEADER"
+  echo "\\copy (WITH priced AS (SELECT DISTINCT r.item_id FROM $RATES_SRC WHERE r.hospital_id = $HID AND r.negotiated_dollar IS NOT NULL $RATES_WHERE), coded AS (SELECT DISTINCT ic.item_id FROM $CODES ic WHERE ic.hospital_id = $HID AND $SCOPE), it AS (SELECT count(*) AS items_total, count(*) FILTER (WHERE i.quality_labels = '{}') AS items_clean, count(*) FILTER (WHERE c.item_id IS NOT NULL) AS items_with_shoppable_code, count(*) FILTER (WHERE i.quality_labels = '{}' AND c.item_id IS NOT NULL) AS items_clean_shoppable, count(*) FILTER (WHERE i.discounted_cash IS NOT NULL) AS items_with_cash, count(*) FILTER (WHERE i.quality_labels = '{}' AND i.discounted_cash IS NOT NULL AND p.item_id IS NULL) AS cash_only_items FROM $ITEMS_SRC LEFT JOIN priced p ON p.item_id = i.item_id LEFT JOIN coded c ON c.item_id = i.item_id WHERE i.hospital_id = $HID $ITEMS_WHERE), ra AS (SELECT count(*) AS rates_total, count(*) FILTER (WHERE r.quality_labels = '{}') AS rates_clean, count(*) FILTER (WHERE r.quality_labels = '{}' AND r.negotiated_dollar IS NOT NULL) AS negotiated_dollar_rates, count(*) FILTER (WHERE r.negotiated_dollar IS NULL AND r.negotiated_percentage IS NOT NULL) AS percentage_only_rates, count(*) FILTER (WHERE r.negotiated_dollar IS NULL AND r.negotiated_percentage IS NULL AND (r.estimated_amount IS NOT NULL OR r.median_amount IS NOT NULL)) AS allowed_amount_rates, count(*) FILTER (WHERE r.negotiated_dollar IS NULL AND r.negotiated_percentage IS NULL AND r.negotiated_algorithm IS NOT NULL) AS algorithm_only_rates FROM $RATES_SRC WHERE r.hospital_id = $HID $RATES_WHERE) SELECT h.hospital_id, h.ccn, h.name, h.status, (SELECT count(*) FROM hospital_mrfs hm2 WHERE hm2.hospital_id = h.hospital_id) AS mrf_links, (SELECT count(*) FROM hospital_mrfs hm3 WHERE hm3.hospital_id = h.hospital_id $([ "$HAS_REJECTED" = 1 ] && echo "AND hm3.rejected_at IS NOT NULL" || echo "AND false")) AS mrf_links_rejected, it.*, ra.* FROM hospitals h, it, ra WHERE h.hospital_id = $HID) TO '$OUT/stage_counts/$HID.csv' CSV HEADER"
 done
 
 echo "COMMIT;"
@@ -239,8 +275,8 @@ SNAP="$(tail -n +2 "$OUT/snapshot.csv" | head -1)"
   echo "  \"statementTimeout\": \"$TIMEOUT\","
   echo "  \"snapshot\": \"$SNAP\","
   echo "  \"capabilities\": { \"rejectedAtAvailable\": $([ "$HAS_REJECTED" = 1 ] && echo true || echo false), \"sourceRowRefAvailable\": $([ "$HAS_SOURCE_ROW_REF" = 1 ] && echo true || echo false), \"genericNotesAvailable\": $([ "$HAS_GENERIC_NOTES" = 1 ] && echo true || echo false), \"dupCountAvailable\": $([ "$HAS_DUP_COUNT" = 1 ] && echo true || echo false), \"entryHashAvailable\": $([ "$HAS_ENTRY_HASH" = 1 ] && echo true || echo false), \"derivedBasisAvailable\": $([ "$HAS_DERIVED_BASIS" = 1 ] && echo true || echo false) },"
-  echo "  \"ratesSource\": $(printf '%s' "$RATES_SRC" | sed 's/"/\\"/g; s/^/"/; s/$/"/'),"
-  echo "  \"itemsSource\": $(printf '%s' "$ITEMS_SRC" | sed 's/"/\\"/g; s/^/"/; s/$/"/'),"
+  echo "  \"ratesSource\": $(printf '%s' "$ORIG_RATES_SRC" | sed 's/"/\\"/g; s/^/"/; s/$/"/'),"
+  echo "  \"itemsSource\": $(printf '%s' "$ORIG_ITEMS_SRC" | sed 's/"/\\"/g; s/^/"/; s/$/"/'),"
   echo "  \"codeScope\": $(printf '%s' "$SCOPE" | sed 's/"/\\"/g; s/^/"/; s/$/"/'),"
   echo '  "files": {'
   first=1
