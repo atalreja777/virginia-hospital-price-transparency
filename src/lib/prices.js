@@ -134,15 +134,17 @@ export const isPerUnitGroup = (id) => METHOD_GROUPS.some((g) => g.id === id && g
  * unlabelled billing class, in which case filtering on it would hide
  * everything — `resolveBillingClass` returns null and the filter is inert.
  *
- * Methods: every dollar method is shown, but per-diem entries are excluded
- * from the cross-hospital ranking until the user asks for them, because a
- * price per day cannot be ranked against a price per case.
+ * Methods: every dollar method is shown, per-diem included and badged "per
+ * day". What per-diem is held out of is the cross-hospital *ranking*, because
+ * a price per day cannot be ranked against a price per case — not the list,
+ * where it is a real published rate the hospital should be credited for.
+ * `methodGroups` says what is visible; `includePerDiem` says what is ranked.
  */
 export function defaultContext(dicts) {
   return {
     settings: defaultSettings(dicts?.settings),
     billingClass: resolveBillingClass(dicts?.billingClasses),
-    methodGroups: ['caseRate', 'feeSchedule', 'other'],
+    methodGroups: METHOD_GROUPS.map((g) => g.id),
     includePerDiem: false,
   };
 }

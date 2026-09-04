@@ -71,11 +71,48 @@ export const loadPayerGroups= () => once('pgroups', () => getJSON('payer_groups.
  * built before the contract existed simply does not have them, and the site
  * has to deploy in either order. A missing file is `null` — a real answer —
  * while a network failure still throws, because those are not the same fact.
+ *
+ * "Missing" is not always a 404. This site is served as static files with a
+ * single-page fallback: GitHub Pages, and `vite preview`, answer a request for
+ * a file that is not there with **200 and index.html**. A loader that only
+ * recognised 404 therefore got a body of HTML, threw a parse error, and took
+ * the whole page down with it — precisely when the new UI is deployed ahead of
+ * the new data, which is the case this fallback exists to survive.
+ *
+ * So an optional file is absent if the server says 404 *or* answers with
+ * something that is not JSON. A body that claims to be JSON and does not parse
+ * is still an error: that is corruption, not absence.
  */
-const optional = (key, file) => once(key, () => getJSON(file).catch((e) => {
-  if (e?.status === 404) return null;
-  throw e;
-}));
+async function getOptionalJSON(p, signal) {
+  let r;
+  try {
+    r = await fetch(url(p), signal ? { signal } : undefined);
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e;
+    const err = new Error(`Could not reach the server for ${p}: ${e.message}`);
+    err.cause = e;
+    throw err;
+  }
+  if (r.status === 404) return null;
+  if (!r.ok) {
+    const err = new Error(`Could not load ${p} (${r.status})`);
+    err.status = r.status;
+    throw err;
+  }
+  const type = r.headers?.get?.('content-type') || '';
+  const body = await r.text();
+  // The single-page fallback, served in place of a file that is not there.
+  if (/\bhtml\b/i.test(type) || /^\s*<(!doctype|html)/i.test(body)) return null;
+  try {
+    return JSON.parse(body);
+  } catch (e) {
+    const err = new Error(`${p} did not parse as JSON`);
+    err.cause = e;
+    throw err;
+  }
+}
+
+const optional = (key, file) => once(key, () => getOptionalJSON(file));
 export const loadBillingClasses = () => optional('bc',    'billing_classes.json');
 export const loadPayerSegments  = () => optional('pseg',  'payer_segments.json');
 export const loadStageCounts    = () => optional('stage', 'stage_counts.json');
@@ -512,13 +549,16 @@ export async function loadCode(type, code, signal) {
     throw e;
   });
 
+  // A shard that is not there is "nobody published this", however the host
+  // says so — a 404, or the single-page fallback answering 200 with index.html.
   let bucket, meta;
   try {
-    [bucket, meta] = await Promise.all([once(file, () => getJSON(file, signal)), metaP]);
+    [bucket, meta] = await Promise.all([once(file, () => getOptionalJSON(file, signal)), metaP]);
   } catch (e) {
     if (e?.status === 404) return { status: 'absent' };
     throw e;
   }
+  if (bucket == null) return { status: 'absent' };
 
   const decoded = decodeBucket(meta, bucket, code);
   if (!decoded) return { status: 'absent' };

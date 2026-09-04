@@ -101,7 +101,9 @@ export default function Landing() {
                   // `totals.prices` became `totals.priceEntries`.
                   [stats ? (stats.totals.priceEntries ?? stats.totals.prices ?? 0).toLocaleString() : '—', 'Published price entries read from Virginia hospital files'],
                   [stats ? stats.totals.hospitalsPublishing : '—', 'Hospitals with prices you can compare'],
-                  [stats ? `${stats.spread.medianRatio.toFixed(1)}×` : '—', 'Typical gap between the cheaper and dearer hospital for the same code'],
+                  // Null when no code cleared the coverage threshold — a real
+                  // state for a narrow release, not a reason to blank the page.
+                  [stats?.spread?.medianRatio != null ? `${stats.spread.medianRatio.toFixed(1)}×` : '—', 'Typical gap between the cheaper and dearer hospital for the same code'],
                   [stats ? `${Math.round(stats.cash.share * 100)}%` : '—', 'Of the time, the cash price beats the insured price'],
                 ].map(([value, label], i) => (
                   <div key={label} className="grid sm:grid-cols-[1fr_minmax(0,22ch)] gap-x-8 gap-y-1 items-baseline py-7 border-b border-hair">

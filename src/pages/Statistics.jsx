@@ -52,6 +52,7 @@ export default function Statistics() {
   // distinct entries rather than post-collapse rows.
   const priceEntries = s.totals.priceEntries ?? s.totals.prices ?? 0;
   const outcomeGroups = stageCounts?.length ? groupStageCounts(stageCounts) : null;
+  const excludedCount = s.excludedFromHeadline?.codes ?? s.excludedFromHeadline?.count ?? null;
 
   return (
     <>
@@ -71,7 +72,7 @@ export default function Statistics() {
             <Reveal delay={60}><Stat value={s.totals.hospitalsPublishing} label="Hospitals with usable prices" note={`of ${s.totals.hospitalsSeeded} Virginia hospitals in the federal registry`} /></Reveal>
             <Reveal delay={110}><Stat value={priceEntries.toLocaleString()} label="Published price entries" /></Reveal>
             <Reveal delay={160}><Stat value={s.totals.procedures.toLocaleString()} label="Schedulable procedures" note="Emergency and ambulance codes excluded" /></Reveal>
-            <Reveal delay={210}><Stat value={`${s.spread.medianRatio.toFixed(1)}×`} label="Median price spread" note="Typical gap between cheaper and dearer hospitals for the same code" accent /></Reveal>
+            <Reveal delay={210}><Stat value={s.spread?.medianRatio != null ? `${s.spread.medianRatio.toFixed(1)}×` : '—'} label="Median price spread" note="Typical gap between cheaper and dearer hospitals for the same code" accent /></Reveal>
           </div>
         </div>
       </header>
@@ -94,7 +95,8 @@ export default function Statistics() {
                   Drug and supply codes are deliberately excluded from every comparison on this page.
                   They are billed per unit, so a difference between two hospitals often reflects a
                   unit of measure rather than a price.
-                  {s.excludedFromHeadline && ` ${s.excludedFromHeadline.count.toLocaleString()} such codes were set aside.`}
+                  {/* `count` became `codes` when the audit gained its reasons breakdown. */}
+                  {excludedCount != null && ` ${excludedCount.toLocaleString()} such codes were set aside.`}
                 </p>
               </Reveal>
             </div>
@@ -128,26 +130,36 @@ export default function Statistics() {
               [s.spread.over2x, '2× or more', 'The dearer hospitals charge at least double the cheaper ones.'],
               [s.spread.over5x, '5× or more', 'A gap this size is larger than most people\'s annual deductible.'],
               [s.spread.over10x, '10× or more', 'Same billing code, same state, ten times the price.'],
-            ].map(([n, label, note], i) => (
-              <Reveal key={label} delay={i * 80} className="bg-ink p-7 sm:p-9">
-                <div className="t-num text-[3rem] text-accent">
-                  {n.toLocaleString()}
-                </div>
-                <div className="t-label opacity-55 mt-3">procedures vary {label}</div>
-                <p className="t-small opacity-65 mt-3">{note}</p>
-                <div className="mt-5 h-1.5 rounded-full bg-ink-3 overflow-hidden">
-                  <div className="h-full bg-accent bar-grow" style={{ width: `${(n / s.spread.comparableProcedures) * 100}%`, animationDelay: `${i * 80}ms` }} />
-                </div>
-                <div className="t-small opacity-45 mt-2 tnum">
-                  {Math.round((n / s.spread.comparableProcedures) * 100)}% of comparable procedures
-                </div>
-              </Reveal>
-            ))}
+            ].map(([n, label, note], i) => {
+              // A release too narrow to have any comparable procedure divides
+              // by zero here; show no share rather than "NaN%".
+              const share = s.spread.comparableProcedures
+                ? (n / s.spread.comparableProcedures) * 100
+                : null;
+              return (
+                <Reveal key={label} delay={i * 80} className="bg-ink p-7 sm:p-9">
+                  <div className="t-num text-[3rem] text-accent">
+                    {(n ?? 0).toLocaleString()}
+                  </div>
+                  <div className="t-label opacity-55 mt-3">procedures vary {label}</div>
+                  <p className="t-small opacity-65 mt-3">{note}</p>
+                  <div className="mt-5 h-1.5 rounded-full bg-ink-3 overflow-hidden">
+                    <div className="h-full bg-accent bar-grow" style={{ width: `${share ?? 0}%`, animationDelay: `${i * 80}ms` }} />
+                  </div>
+                  <div className="t-small opacity-45 mt-2 tnum">
+                    {share == null ? 'no comparable procedures in this release' : `${Math.round(share)}% of comparable procedures`}
+                  </div>
+                </Reveal>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* ------------------------------------------------------------------ cash */}
+      {/* With no comparison made, "in 0% of pairs cash beat insured" would be a
+          finding drawn from no data. Say nothing instead. */}
+      {s.cash?.comparisons > 0 && (
       <section className="bg-paper py-24 sm:py-32">
         <div className="max-w-[92rem] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-2 gap-14">
@@ -189,6 +201,7 @@ export default function Statistics() {
           </div>
         </div>
       </section>
+      )}
 
       {/* -------------------------------------------------------------- coverage */}
       <section className="bg-paper-2 py-24 sm:py-32">
