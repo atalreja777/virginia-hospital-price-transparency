@@ -1,0 +1,7 @@
+payer_id,payer_name_raw,payer_key
+1,AETNA,aetna
+2,ANTHEM HEALTHKEEPERS,anthem
+3,UNITED HEALTHCARE MEDICARE ADVANTAGE,uhc_ma
+4,ANTHEM COMMUNITY PLAN MEDICAID,anthem_medicaid
+5,MEDICARE,medicare
+6,SELF PAY,selfpay

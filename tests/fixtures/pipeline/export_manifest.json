@@ -1,0 +1,31 @@
+{
+  "stage": "01_export",
+  "exportedAt": "2026-03-01T00:00:00Z",
+  "database": "fixture",
+  "state": "VA",
+  "scope": "synthetic fixture",
+  "hospitalIds": [
+    901,
+    902,
+    903,
+    904,
+    905,
+    906,
+    907,
+    908,
+    909,
+    910
+  ],
+  "hospitalCount": 10,
+  "statementTimeout": "120s",
+  "snapshot": "1000:1000:",
+  "capabilities": {
+    "rejectedAtAvailable": true,
+    "sourceRowRefAvailable": true,
+    "genericNotesAvailable": false,
+    "dupCountAvailable": false
+  },
+  "ratesSource": "fixture",
+  "itemsSource": "fixture",
+  "files": {}
+}

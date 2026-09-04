@@ -1,0 +1,9 @@
+hospital_id,file_version_id,item_id,code_type,code,setting,billing_class,modifiers,drug_unit,payer_id,plan_id,methodology_id,negotiated_dollar,negotiated_percentage,negotiated_algorithm,estimated_amount,median_amount,p10_amount,p90_amount,count_raw,additional_notes,derived_basis,quality_labels
+907,8007,100019,CPT,45378,outpatient,facility,,,1,1,3,1627,,,,,,,,,,
+907,8007,100019,CPT,45378,outpatient,facility,,,2,1,1,1634,,,,,,,,,,
+907,8007,100019,CPT,45378,outpatient,facility,,,3,3,2,1641,,,,,,,,,,
+907,8007,100019,CPT,45378,outpatient,facility,,,5,1,3,1655,,,,,,,,,,
+907,8007,100020,HCPCS,J1234,outpatient,facility,,,1,1,3,980,,,,,,,,,,
+907,8007,100021,CPT,70450,outpatient,facility,,,1,1,3,1711,,,,,,,,,,
+907,8007,100021,CPT,70450,outpatient,facility,,,2,2,3,1722,,,,,,,,,,
+907,8007,100021,CPT,70450,outpatient,facility,,,5,1,3,1755,,,,,,,,,,

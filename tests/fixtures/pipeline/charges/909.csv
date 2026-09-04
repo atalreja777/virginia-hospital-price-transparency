@@ -1,0 +1,6 @@
+hospital_id,file_version_id,item_id,source_row_ref,code_type,code,description,setting,billing_class,modifiers,drug_unit,drug_type,gross,cash,min_negotiated,max_negotiated,generic_notes,dup_count
+909,8009,100025,row:100025,CPT,45378,"Colonoscopy, flexible, diagnostic",outpatient,facility,,,,6400,1920,,,,
+909,8009,100026,row:100026,HCPCS,J1234,"Injection, testolimab, 1 mg",outpatient,facility,,,,18,13,,,,
+909,8009,100034,row:100034,CDM,29881,KNEE SCOPE MENISC,outpatient,facility,,,,14000,8000,,,,
+909,8009,100035,row:100035,CDM,88888,HOUSE CHARGE CODE,outpatient,facility,,,,100,90,,,,
+909,8009,100036,row:100036,HCPCS,270,MEDICAL SUPPLIES,outpatient,facility,,,,12,,,,,

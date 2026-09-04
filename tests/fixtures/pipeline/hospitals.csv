@@ -1,0 +1,11 @@
+hospital_id,ccn,name,address,city,state,zip,ownership,hgi_type,status,pos_subtype_cd,exempt_basis,status_reason
+901,49T001,Test Hospital 1,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+902,49T002,Test Hospital 2,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+903,49T003,Test Hospital 3,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+904,49T004,Test Hospital 4,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+905,49T005,Test Hospital 5,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+906,49T006,Test Hospital 6,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+907,49T007,Test Hospital 7,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+908,49T008,Test Hospital 8,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+909,49T009,Test Hospital 9,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,
+910,49T010,Test Hospital 10,1 Test Way,Testville,VA,23000,Nonprofit,Short Term,success,,,

@@ -1,0 +1,4 @@
+hospital_id,file_version_id,item_id,source_row_ref,code_type,code,description,setting,billing_class,modifiers,drug_unit,drug_type,gross,cash,min_negotiated,max_negotiated,generic_notes,dup_count
+906,8006,100016,row:100016,CPT,45378,"Colonoscopy, flexible, diagnostic",outpatient,facility,,,,5500,1650,,,,
+906,8006,100017,row:100017,HCPCS,J1234,"Injection, testolimab, 1 mg",outpatient,facility,,,,15,10,,,,
+906,8006,100018,row:100018,CPT,70450,Ct head or brain without contrast,outpatient,facility,,,,4000,300,,,,
