@@ -274,3 +274,22 @@ export function dirSize(dir) {
 }
 
 export const mb = (bytes) => (bytes / 1048576).toFixed(1) + ' MB';
+
+/* ------------------------------------------------------- wording ---- */
+/**
+ * Choose the displayed wording for one code from its candidates
+ * [{d, nh, native, shared}]. Rules, in order: a wording used by several codes
+ * of the same type (`shared`) is never chosen while an unshared one used by
+ * at least MIN_UNIQUE hospitals exists; native (published under a real CPT/
+ * HCPCS/MS-DRG column) beats local-column wording; then the wording the most
+ * hospitals use; then the longer one.
+ */
+export function pickWording(cands, MIN_UNIQUE = 2) {
+  const rank = (c) => [c.shared ? 0 : 1, c.native ? 1 : 0, c.nh, c.d.length];
+  const better = (a, b) => { const ra = rank(a), rb = rank(b); for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return ra[i] > rb[i]; return false; };
+  const unique = cands.filter((c) => !c.shared && c.nh >= MIN_UNIQUE);
+  const pool = unique.length ? unique : cands;
+  let best = pool[0];
+  for (const c of pool.slice(1)) if (better(c, best)) best = c;
+  return best;
+}

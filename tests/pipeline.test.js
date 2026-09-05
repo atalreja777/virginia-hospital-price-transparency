@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { openData, chargeSummary } from '../pipeline/lib/shards.mjs';
-import { perUnitReason, isProcedureLike, admitCode, effectiveType, toCents } from '../pipeline/lib/util.mjs';
+import { perUnitReason, isProcedureLike, admitCode, effectiveType, toCents, pickWording } from '../pipeline/lib/util.mjs';
 import { classifySegment, SEGMENTS } from '../pipeline/lib/payers.mjs';
 
 const REPO = path.resolve('.');
@@ -355,4 +355,29 @@ describe('the validator', () => {
     expect(r.ok).toBe(false);
     expect(r.output).toMatch(/over2x/);
   }, 60_000);
+});
+
+describe('pickWording', () => {
+  it('prefers the most used wording that is unique to the code over a shared short descriptor', () => {
+    const pick = pickWording([
+      { d: 'Knee arthroscopy/surgery', nh: 19, native: true, shared: true },
+      { d: 'Arthroscopy, knee, surgical; with meniscus repair (medial OR lateral)', nh: 12, native: true, shared: false },
+      { d: 'Arthroscopy Knee W/Meniscus Rpr Medial/Lateral|RIGHT SIDE', nh: 7, native: true, shared: false },
+    ]);
+    expect(pick.d).toMatch(/meniscus repair/);
+  });
+  it('falls back to the shared wording when nothing unique is used by two hospitals', () => {
+    const pick = pickWording([
+      { d: 'Knee arthroscopy/surgery', nh: 19, native: true, shared: true },
+      { d: 'HC SOMETHING LOCAL', nh: 1, native: false, shared: false },
+    ]);
+    expect(pick.d).toBe('Knee arthroscopy/surgery');
+  });
+  it('native wording beats local-column wording among unique candidates', () => {
+    const pick = pickWording([
+      { d: 'HC LOCAL NAME', nh: 9, native: false, shared: false },
+      { d: 'MRI brain without contrast', nh: 3, native: true, shared: false },
+    ]);
+    expect(pick.d).toBe('MRI brain without contrast');
+  });
 });
