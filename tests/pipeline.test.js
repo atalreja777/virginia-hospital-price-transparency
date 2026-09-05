@@ -209,6 +209,9 @@ describe('statistics filter', () => {
       expect(perUnitReason(s.type, s.code, s.desc), `${s.type} ${s.code}`).toBeNull();
     }
     expect(stats.biggestSpreads.some((s) => s.code === 'J1234')).toBe(false);
+    expect(perUnitReason('CPT', '00908', 'Anes perineal prostatectomy')).toBe('cpt_anesthesia_time_units');
+    expect(perUnitReason('CPT', '01999', 'Unlisted anesthesia')).toBe('cpt_anesthesia_time_units');
+    expect(perUnitReason('CPT', '70551', 'MRI brain without contrast')).toBeNull();
   });
 
   it('recognises the per-unit cases the old rule missed', () => {

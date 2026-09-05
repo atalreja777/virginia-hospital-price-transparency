@@ -247,6 +247,10 @@ export const PER_UNIT_DESC = /\b(inj(ection)?|per\s|mg\b|ml\b|mcg\b|unit[s]?\b|d
 
 export function perUnitReason(type, code, desc) {
   if (type === 'HCPCS' && /^[JQA]/.test(code || '')) return `hcpcs_${code[0].toLowerCase()}_code`;
+  // Anesthesia (CPT 00100-01999) is priced in base + time units, so a published
+  // figure may be one unit or a whole case; a 113,000x "spread" on CPT 00908 was
+  // that, not a price difference. Searchable, never used to argue.
+  if (type === 'CPT' && /^0[01]\d{3}$/.test(code || '')) return 'cpt_anesthesia_time_units';
   if (PER_UNIT_DESC.test(desc || '')) return 'per_unit_wording';
   return null;
 }
