@@ -74,7 +74,7 @@ export default function InsurancePanel({
           </span>
           <span className="block t-small opacity-55 mt-1">
             {!brand
-              ? 'Optional. Uses your real negotiated rate and estimates what you would pay.'
+              ? 'Optional. Uses the rate published under your payer and plan name and estimates your share.'
               : `${brand}${planId != null && plans[planId] ? ` · ${plans[planId]}` : ''}`}
           </span>
         </span>
@@ -207,7 +207,7 @@ export default function InsurancePanel({
           {preview && (
             <div className="mt-2 -mx-6 -mb-6 px-6 py-6 bg-ink text-paper">
               <div className="flex items-baseline justify-between gap-4 flex-wrap">
-                <span className="t-label opacity-50">With these numbers, you would pay</span>
+                <span className="t-label opacity-50">With these numbers, a planning estimate of your share</span>
                 {preview.saving > 0 && (
                   <span className="t-small" style={{ color: 'var(--color-accent-dk)' }}>
                     choosing well saves {fmtUSD(preview.saving, { round: true })}

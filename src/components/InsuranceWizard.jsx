@@ -285,7 +285,7 @@ export default function InsuranceWizard({
             <div style={{ animation: 'stepIn .35s cubic-bezier(.16,1,.3,1) both' }}>
               {preview ? (
                 <>
-                  <h3 className="text-[1.375rem] font-semibold tracking-[-0.022em]">Here is what you would pay</h3>
+                  <h3 className="text-[1.375rem] font-semibold tracking-[-0.022em]">Here is a planning estimate of your share</h3>
                   <p className="t-small opacity-60 mt-2 mb-6 max-w-[46ch]">
                     Using {draft.brand || 'every published rate'} at the hospitals in your search.
                   </p>

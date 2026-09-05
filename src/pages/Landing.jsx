@@ -61,8 +61,8 @@ export default function Landing() {
           <Reveal delay={420} className="mt-9 grid lg:grid-cols-[minmax(0,30rem)_minmax(0,30rem)] gap-8 lg:gap-14 lg:items-end">
             <p className="t-lede opacity-65">
               Search a procedure, set how far you will travel, add your insurance.
-              You get the real negotiated price at each Virginia hospital and what
-              you would actually pay.
+              You get the negotiated price each Virginia hospital published and a
+              planning estimate of your share.
             </p>
             <div>
               <SearchBox dark size="lg" />

@@ -164,7 +164,7 @@ export default function PriceDistanceChart({ rows, onSelect, selected, estimateF
         ) : (
           <p className="t-small opacity-45 pt-4">
             Hover any hospital to see it. Click to open it in the list.
-            {estimateFn && ' Showing what you would pay with your insurance.'}
+            {estimateFn && ' Showing a planning estimate of your share from the benefits you entered.'}
           </p>
         )}
       </div>

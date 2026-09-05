@@ -55,7 +55,7 @@ export default function InsuranceCue({ onOpen, brand, preview, hasBenefits }) {
 
             {preview && (
               <div className="mt-4 pt-4 border-t border-hair">
-                <div className="t-label opacity-45">You would pay, at the cheapest</div>
+                <div className="t-label opacity-45">Planning estimate of your share, at the cheapest</div>
                 <div className="t-num text-[1.75rem] mt-1" style={{ color: 'var(--color-accent-dk)' }}>
                   {fmtUSD(preview.cheapest, { round: true })}
                 </div>
@@ -71,7 +71,7 @@ export default function InsuranceCue({ onOpen, brand, preview, hasBenefits }) {
           <>
             <div className="flex items-start justify-between gap-3">
               <p className="font-semibold tracking-[-0.014em] text-[1rem] leading-snug">
-                See what <span style={{ color: 'var(--color-accent-dk)' }}>you</span> would pay
+                Estimate what <span style={{ color: 'var(--color-accent-dk)' }}>you</span> might pay
               </p>
               <button onClick={dismiss} aria-label="Dismiss"
                       className="w-7 h-7 -mt-1 -mr-1 rounded-full grid place-items-center opacity-45 hover:opacity-100 hover:bg-ink-3 transition">
@@ -80,8 +80,8 @@ export default function InsuranceCue({ onOpen, brand, preview, hasBenefits }) {
               </button>
             </div>
             <p className="t-small opacity-65 mt-2">
-              Add your plan and these prices become your actual share — deductible,
-              coinsurance and all. Takes about thirty seconds.
+              Add your deductible and coinsurance for a planning estimate of your
+              share. It is not a quote from your insurer. Takes about thirty seconds.
             </p>
             <button onClick={onOpen} className="btn btn-accent w-full justify-center mt-4 !py-2.5">
               Add your insurance

@@ -146,7 +146,7 @@ export default function Insurance() {
             </div>
 
             <div className="panel p-7 sm:p-10 flex flex-col justify-center">
-              <p className="t-label opacity-45">You would pay</p>
+              <p className="t-label opacity-45">Planning estimate of your share</p>
               <div className="t-stat mt-4 tnum text-accent">{fmtUSD(r.patient, { round: true })}</div>
               <p className="t-body mt-4 opacity-70">
                 Your plan pays <span className="tnum font-semibold">{fmtUSD(r.plan, { round: true })}</span> of
