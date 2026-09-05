@@ -285,7 +285,10 @@ export const mb = (bytes) => (bytes / 1048576).toFixed(1) + ' MB';
  * hospitals use; then the longer one.
  */
 export function pickWording(cands, MIN_UNIQUE = 2) {
-  const rank = (c) => [c.shared ? 0 : 1, c.native ? 1 : 0, c.nh, c.d.length];
+  // Among code-unique candidates: native first, then most hospitals, then
+  // longer. When no unique wording is used by MIN_UNIQUE hospitals the shared
+  // wording is the honest choice, ranked the same way without the uniqueness.
+  const rank = (c) => [c.native ? 1 : 0, c.nh, c.d.length];
   const better = (a, b) => { const ra = rank(a), rb = rank(b); for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return ra[i] > rb[i]; return false; };
   const unique = cands.filter((c) => !c.shared && c.nh >= MIN_UNIQUE);
   const pool = unique.length ? unique : cands;
