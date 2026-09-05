@@ -87,7 +87,7 @@ export default function Landing() {
           <div className="grid lg:grid-cols-[minmax(0,20rem)_1fr] gap-10 lg:gap-16 mt-16">
             <Reveal delay={80}>
               <p className="t-body opacity-60">
-                Since 2021 federal law has required every hospital to publish what it
+                Since 2021 federal law has required nearly every hospital to publish what it
                 charges and what each insurance plan has agreed to pay. The files exist.
                 They are enormous, inconsistently formatted, and almost nobody reads them.
                 This site reads them for Virginia.
@@ -104,7 +104,7 @@ export default function Landing() {
                   // Null when no code cleared the coverage threshold — a real
                   // state for a narrow release, not a reason to blank the page.
                   [stats?.spread?.medianRatio != null ? `${stats.spread.medianRatio.toFixed(1)}×` : '—', 'Typical gap between the cheaper and dearer hospital for the same code'],
-                  [stats ? `${Math.round(stats.cash.share * 100)}%` : '—', 'Of the time, the cash price beats the insured price'],
+                  [stats ? `${Math.round(stats.cash.share * 100)}%` : '—', 'Of analyzed hospital-and-procedure pairs, the cash price was below the median insured price'],
                 ].map(([value, label], i) => (
                   <div key={label} className="grid sm:grid-cols-[1fr_minmax(0,22ch)] gap-x-8 gap-y-1 items-baseline py-7 border-b border-hair">
                     <div className="t-num text-[clamp(2.75rem,6vw,4.75rem)] font-normal tracking-[-0.05em]"
@@ -238,7 +238,7 @@ export default function Landing() {
                 {Math.round(stats.cash.share * 100)}%
               </Reveal>
               <Reveal as="p" className="t-title mt-7 max-w-[18ch] font-normal" delay={110}>
-                of the time, the cash price beats the insured price.
+                of analyzed hospital-and-procedure pairs, the published cash price was below the median insured price.
               </Reveal>
             </div>
             <Reveal delay={180}>
