@@ -174,7 +174,10 @@ describe('search index', () => {
       expect(code).toMatch(/^[A-Z0-9]+$/);
       expect(typeof desc).toBe('string');
       expect(nh).toBeGreaterThan(0);
-      expect(nr).toBeGreaterThan(0);
+      // A code can be searchable with zero negotiated-dollar entries: since the
+      // release contract, hospitals that publish only a cash/gross charge or a
+      // formula for it still count as publishing it. Negative counts are a bug.
+      expect(nr).toBeGreaterThanOrEqual(0);
       if (p10 != null && p90 != null) expect(p90).toBeGreaterThanOrEqual(p10);
       if (p10 != null && p50 != null) expect(p50).toBeGreaterThanOrEqual(p10);
     }
