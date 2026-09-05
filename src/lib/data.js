@@ -264,8 +264,13 @@ const ALIASES = [
  * contradicts it.
  */
 const ATTRIBUTE_PAIRS = [
+  // Hospitals write contrast three ways: the long descriptor ("with contrast"),
+  // the AMA short descriptor ("w/dye", "w/o dye") and chargemaster shorthand
+  // ("w/contrast", "wo contrast"). A "w/o & w/dye" study matches both sides and
+  // scores zero, so the plain with- or without-contrast code outranks it.
   { yes: (t) => t.has('with'), no: (t) => t.has('without') || t.has('wo') || t.has('w/o'),
-    descYes: /\bwith contrast\b/i, descNo: /\bwithout contrast\b/i },
+    descYes: /(?:\bwith|\bw\/?)\s*(?:contrast|dye)\b/i,
+    descNo: /(?:\bwithout|\bw\/o|\bwo)\b\s*(?:contrast|dye)?/i },
   { yes: (t) => t.has('screening'), no: (t) => t.has('diagnostic'),
     descYes: /\bscreening\b/i, descNo: /\bdiagnostic\b/i },
   { yes: (t) => t.has('revision'), no: (t) => t.has('primary') || t.has('initial'),

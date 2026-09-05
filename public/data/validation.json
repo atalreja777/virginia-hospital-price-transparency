@@ -1,0 +1,230 @@
+{
+  "validatedAt": "2026-09-05T03:26:39.218Z",
+  "dataDir": "/Users/atalreja/Developer/virginia-hospital-price-transparency/pipeline/out/2026-09-04-va-r9/data",
+  "passed": true,
+  "failures": [],
+  "warnings": [],
+  "checks": [
+    {
+      "name": "file meta.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file hospitals.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file search.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file payers.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file plans.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file settings.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file billing_classes.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file methodologies.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file stats.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file payer_groups.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file zips.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file demo.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "file hospital_index.json exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "meta carries the export manifest",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "export ran against a database that knows about rejected file links",
+      "ok": true,
+      "detail": "hospital_mrfs.rejected_at was missing; run the Phase 0 backend migration before publishing"
+    },
+    {
+      "name": "export recorded a transaction snapshot",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "no source belongs to a rejected hospital/file pair",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every source carries a url, a full sha256 and a file version",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every index in every shard resolves",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no price is shown at a penny or less",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "meta.counts.codes matches the shards",
+      "ok": true,
+      "detail": "18007 vs 18007"
+    },
+    {
+      "name": "meta.counts.priceEntries matches the shards",
+      "ok": true,
+      "detail": "8381991 vs 8381991"
+    },
+    {
+      "name": "meta.counts.withheldEntries matches the shards",
+      "ok": true,
+      "detail": "10 vs 10"
+    },
+    {
+      "name": "meta.counts.formulaEntries matches the shards",
+      "ok": true,
+      "detail": "469047 vs 469047"
+    },
+    {
+      "name": "meta.counts.chargeEntries matches the shards",
+      "ok": true,
+      "detail": "1221404 vs 1221404"
+    },
+    {
+      "name": "hospitalsWithPrices is a real number",
+      "ok": true,
+      "detail": "86"
+    },
+    {
+      "name": "hospitalsWithPrices matches the shards",
+      "ok": true,
+      "detail": "86 vs 86"
+    },
+    {
+      "name": "search index covers every code in the shards",
+      "ok": true,
+      "detail": "18007 vs 18007"
+    },
+    {
+      "name": "meta declares the shard contract",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "meta carries a build id and a release id",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "no per-unit or HCPCS J/Q/A code in a headline table",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "spread ratios are the right way round",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the cash comparison reports its denominator",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "stats totals agree with the shards",
+      "ok": true,
+      "detail": "8381991 vs 8381991"
+    },
+    {
+      "name": "payer groups cover every payer",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "stats.spread.comparableProcedures survives an independent recompute",
+      "ok": true,
+      "detail": "13123 vs recomputed 13123"
+    },
+    {
+      "name": "stats.spread.medianRatio survives an independent recompute",
+      "ok": true,
+      "detail": "3.047248741247327 vs recomputed 3.047248741247327"
+    },
+    {
+      "name": "stats.spread.over2x survives an independent recompute",
+      "ok": true,
+      "detail": "9775 vs recomputed 9775"
+    },
+    {
+      "name": "stats.spread.over5x survives an independent recompute",
+      "ok": true,
+      "detail": "3014 vs recomputed 3014"
+    },
+    {
+      "name": "stats.spread.over10x survives an independent recompute",
+      "ok": true,
+      "detail": "1268 vs recomputed 1268"
+    },
+    {
+      "name": "no single shard would stall a phone (>3 MB)",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "observed": {
+    "codes": 18007,
+    "priceEntries": 8381991,
+    "withheldEntries": 10,
+    "formulaEntries": 469047,
+    "chargeEntries": 1221404,
+    "hospitalsWithPrices": 86,
+    "bytes": 285635977
+  },
+  "recomputedSpread": {
+    "comparableProcedures": 13123,
+    "medianRatio": 3.047248741247327,
+    "over2x": 9775,
+    "over5x": 3014,
+    "over10x": 1268
+  }
+}
