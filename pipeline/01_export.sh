@@ -194,8 +194,9 @@ SET idle_in_transaction_session_timeout = '3600s';
 -- Temp tables must exist BEFORE the read-only snapshot: CREATE is refused
 -- inside a READ ONLY transaction, but INSERT into an existing temp table is
 -- allowed. Shapes are copied from the source relations with WHERE false.
-CREATE TEMP TABLE x_rates AS SELECT $R_COLS FROM $RATES_SRC WHERE false;
-CREATE TEMP TABLE x_items AS SELECT $I_COLS FROM $ITEMS_SRC WHERE false;
+CREATE TEMP TABLE x_pub (hospital_id bigint NOT NULL, file_version_id bigint NOT NULL, generation integer NOT NULL, PRIMARY KEY (hospital_id, file_version_id));
+CREATE TEMP TABLE x_rates AS SELECT $R_COLS FROM rates r WHERE false;
+CREATE TEMP TABLE x_items AS SELECT $I_COLS FROM items i WHERE false;
 CREATE TEMP TABLE x_codes AS SELECT $C_COLS FROM item_codes ic WHERE false;
 CREATE INDEX ON x_rates (hospital_id, item_id);
 CREATE INDEX ON x_items (hospital_id, item_id);
@@ -231,12 +232,27 @@ SQLEOF
 # for this psql session and are never written back.
 # ---------------------------------------------------------------------------
 ORIG_RATES_SRC="$RATES_SRC"; ORIG_ITEMS_SRC="$ITEMS_SRC"
+# Two staging strategies. When the backend publishes v_publishable_version and
+# version_loads (Phase 1B/1C), the publishable (hospital, version, generation)
+# triples are tiny, so they are materialised first and the base tables are
+# hash-joined against them in one pruned pass. Going through the release view
+# directly made the planner probe the version lookup once per rate row.
+has_rel(){ [ -n "$(pq "SELECT 1 FROM pg_class WHERE relname='$1'")" ]; }
+if has_rel v_publishable_version && has_rel version_loads; then
+  ORIG_RATES_SRC="v_public_release_rates (staged via v_publishable_version + version_loads)"
+  ORIG_ITEMS_SRC="v_public_release_items (staged via v_publishable_version + version_loads)"
+  STAGE_SQL="INSERT INTO x_pub SELECT p.hospital_id, p.file_version_id, vl.generation FROM v_publishable_version p JOIN version_loads vl ON vl.hospital_id = p.hospital_id AND vl.file_version_id = p.file_version_id AND vl.is_current_load WHERE p.hospital_id = $ARR;
+INSERT INTO x_rates SELECT $R_COLS FROM rates r JOIN x_pub p ON p.hospital_id = r.hospital_id AND p.file_version_id = r.file_version_id AND r.load_generation = p.generation WHERE r.hospital_id = $ARR AND r.quality_labels = '{}' AND (r.negotiated_dollar > 0 OR r.derived_dollar IS NOT NULL OR r.negotiated_percentage IS NOT NULL OR r.negotiated_algorithm IS NOT NULL OR r.median_amount IS NOT NULL OR r.p10_amount IS NOT NULL OR r.p90_amount IS NOT NULL OR r.estimated_amount IS NOT NULL);
+INSERT INTO x_items SELECT $I_COLS FROM items i JOIN x_pub p ON p.hospital_id = i.hospital_id AND p.file_version_id = i.file_version_id AND i.load_generation = p.generation WHERE i.hospital_id = $ARR AND i.quality_labels = '{}';"
+else
+  STAGE_SQL="INSERT INTO x_rates SELECT $R_COLS FROM $RATES_SRC WHERE r.hospital_id = $ARR $RATES_WHERE;
+INSERT INTO x_items SELECT $I_COLS FROM $ITEMS_SRC WHERE i.hospital_id = $ARR $ITEMS_WHERE;"
+fi
 cat <<SQLEOF
 \echo '  staging the $SCOPE_NOTE slice (one pass over each source relation)'
 SET statement_timeout = '${HPT_STAGING_TIMEOUT:-2400s}';
-INSERT INTO x_rates SELECT $R_COLS FROM $RATES_SRC WHERE r.hospital_id = $ARR $RATES_WHERE;
-INSERT INTO x_items SELECT $I_COLS FROM $ITEMS_SRC WHERE i.hospital_id = $ARR $ITEMS_WHERE;
-INSERT INTO x_codes SELECT $C_COLS FROM item_codes ic WHERE ic.hospital_id = $ARR;
+$STAGE_SQL
+INSERT INTO x_codes SELECT $C_COLS FROM item_codes ic JOIN x_items i ON i.hospital_id = ic.hospital_id AND i.item_id = ic.item_id WHERE ic.hospital_id = $ARR;
 ANALYZE x_rates; ANALYZE x_items; ANALYZE x_codes;
 SELECT 'staged' AS stage, (SELECT count(*) FROM x_rates) AS rates, (SELECT count(*) FROM x_items) AS items, (SELECT count(*) FROM x_codes) AS codes;
 SET statement_timeout = '$TIMEOUT';
