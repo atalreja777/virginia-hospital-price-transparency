@@ -666,6 +666,7 @@ export default function Procedure() {
           cheapestMedian={cheapest?.median ?? null} dearestMedian={dearest?.median ?? null}
         />
         <InsuranceCue
+          hidden={!!selected}
           onOpen={openIns}
           brand={brand}
           hasBenefits={usingBenefits}

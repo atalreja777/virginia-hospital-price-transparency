@@ -190,7 +190,9 @@ export default function HospitalMap({
         node.onclick = (e) => { e.stopPropagation(); onSelect?.(selected === lead.ccn ? null : lead.ccn); };
       }
       const mk = new maplibregl.Marker({ element: node, anchor: 'center' }).setLngLat([lead.lon, lead.lat]).addTo(m);
-      if (selected === lead.ccn) mk.getElement().style.zIndex = '30';
+      // Above sibling pins only. Anything higher would escape the panel's stacking
+      // context and paint over the page's sticky controls when the map scrolls under them.
+      if (selected === lead.ccn) mk.getElement().style.zIndex = '3';
       markers.current.push(mk);
     }
   }, [placed, selected, onSelect, priceKey, zoom, lo, hi]);

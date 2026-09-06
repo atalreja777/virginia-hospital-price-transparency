@@ -11,7 +11,7 @@ import { fmtUSD } from '../lib/estimate.js';
  *
  * Dismissing it is remembered for the session, so it never nags.
  */
-export default function InsuranceCue({ onOpen, brand, preview, hasBenefits }) {
+export default function InsuranceCue({ onOpen, brand, preview, hasBenefits, hidden = false }) {
   const [shown, setShown] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     try { return sessionStorage.getItem('cueDismissed') === '1'; } catch { return false; }
@@ -33,6 +33,8 @@ export default function InsuranceCue({ onOpen, brand, preview, hasBenefits }) {
   // stays available even if the prompt was dismissed earlier.
   const configured = !!brand || hasBenefits;
   if (dismissed && !configured) return null;
+  // While a map detail card is open the two would fight for the same corner.
+  if (hidden) return null;
 
   return (
     <div
