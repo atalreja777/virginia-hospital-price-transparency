@@ -407,3 +407,67 @@
 .bg-ink .btn-accent { background: var(--color-accent-dk); color: var(--color-ink); }
 .on-dark .btn-accent:hover,
 .bg-ink .btn-accent:hover { background: #5EE0C6; }
+
+/* ----------------------------------------------------------------- map ---- */
+/* Price pins. A white pill with the price in mono and a dot on the same
+   cheap-to-dear scale as the list; the basemap stays quiet and the numbers
+   stay legible. Selected reads as ink so one pin is unmistakably "this one". */
+.map-pill {
+  --pin: var(--color-p3);
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 9px 5px 7px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  font: 600 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  color: var(--color-ink); background: var(--color-card);
+  border: 1px solid rgb(20 18 15 / 0.14);
+  box-shadow: 0 1px 2px rgb(20 18 15 / 0.10), 0 6px 18px -8px rgb(20 18 15 / 0.35);
+  transition: transform .18s var(--ease-out-expo), box-shadow .18s, background .18s, color .18s;
+}
+.map-pill::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pin);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9) inset;
+}
+.map-pill[data-approx="1"]::before { background: transparent; box-shadow: 0 0 0 2px var(--pin) inset; }
+.map-pill:hover, .map-pill:focus-visible { transform: translateY(-1px) scale(1.06); box-shadow: 0 2px 4px rgb(20 18 15 / 0.12), 0 12px 28px -10px rgb(20 18 15 / 0.45); outline: none; }
+.map-pill[data-sel="1"] { color: var(--color-paper); background: var(--color-ink); border-color: var(--color-ink); transform: scale(1.1); }
+.map-pill[data-sel="1"]::before { box-shadow: 0 0 0 2px rgb(255 255 255 / 0.35) inset; }
+.map-pill[data-band="0"] { --pin: var(--color-p1); }
+.map-pill[data-band="1"] { --pin: var(--color-p2); }
+.map-pill[data-band="2"] { --pin: var(--color-p3); }
+.map-pill[data-band="3"] { --pin: var(--color-p4); }
+.map-pill[data-band="4"] { --pin: var(--color-p5); }
+/* Several hospitals under one pin at this zoom: a count, and the cheapest of
+   them as the price, so the pin still says something before you zoom in. */
+.map-cluster {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px 5px 6px; border-radius: 999px; cursor: pointer;
+  font: 600 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--color-ink);
+  background: var(--color-card); border: 1px solid rgb(20 18 15 / 0.14);
+  box-shadow: 0 1px 2px rgb(20 18 15 / 0.10), 0 6px 18px -8px rgb(20 18 15 / 0.35);
+  transition: transform .18s var(--ease-out-expo);
+}
+.map-cluster:hover, .map-cluster:focus-visible { transform: translateY(-1px) scale(1.06); outline: none; }
+.map-cluster .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center; background: var(--color-ink); color: var(--color-paper); font-size: 11px; }
+.map-cluster .from { opacity: .55; font-weight: 500; }
+/* You. A steady dot with one slow pulse, never a red teardrop. */
+.map-you { position: relative; width: 18px; height: 18px; border-radius: 50%; background: var(--color-accent); border: 3px solid #fff; box-shadow: 0 0 0 1px rgb(20 18 15 / 0.2), 0 4px 12px rgb(20 18 15 / 0.25); }
+.map-you::after { content: ""; position: absolute; inset: -14px; border-radius: 50%; border: 2px solid var(--color-accent); opacity: 0; animation: you-pulse 2.4s ease-out infinite; }
+@keyframes you-pulse { 0% { transform: scale(.4); opacity: .7; } 100% { transform: scale(1.1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .map-you::after { animation: none; } }
+.map-zip { padding: 4px 8px; border-radius: 999px; font: 600 11px/1 var(--font-mono); color: var(--color-paper); background: var(--color-ink); box-shadow: 0 4px 12px rgb(20 18 15 / 0.25); white-space: nowrap; }
+/* Map-top controls sit on glass so they read over any tile. */
+.map-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px;
+  font-size: .8125rem; font-weight: 500; color: var(--color-ink); cursor: pointer;
+  background: rgb(255 255 255 / 0.92); backdrop-filter: blur(8px); border: 1px solid rgb(20 18 15 / 0.12);
+  box-shadow: 0 1px 2px rgb(20 18 15 / 0.08), 0 6px 18px -10px rgb(20 18 15 / 0.35);
+  transition: background .15s, transform .15s;
+}
+.map-btn:hover { background: #fff; }
+.map-btn:disabled { opacity: .6; cursor: default; }
+.map-btn:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
+.map-btn[data-on="1"] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+/* The detail card: a receipt for one hospital, anchored inside the map. */
+.map-card { animation: card-in .26s var(--ease-out-expo) both; }
+@keyframes card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .map-card { animation: none; } }
+.maplibregl-ctrl-group { border-radius: 999px !important; overflow: hidden; box-shadow: 0 1px 2px rgb(20 18 15 / 0.08), 0 6px 18px -10px rgb(20 18 15 / 0.35) !important; }
+.maplibregl-ctrl-attrib { font-size: 10px !important; }

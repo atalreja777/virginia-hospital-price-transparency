@@ -1,56 +1,55 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { boundsOf, VA_CENTER } from '../lib/geo.js';
+import { boundsOf, VA_CENTER, approxRoadMiles } from '../lib/geo.js';
 import { fmtUSD } from '../lib/estimate.js';
+import { chargeSummaryFor } from '../lib/prices.js';
 
 /**
- * Hospitals as price tags on a map.
+ * Hospitals as price pins on a map.
  *
  * The whole argument of this site is that price and geography are linked, so
- * the map has to show price, not just location. Design decisions that follow
- * from that:
+ * the map has to show price, not just location. What that means here:
  *
- *   - The basemap is deliberately quiet and desaturated. Every bit of colour on
- *     screen belongs to the data.
- *   - Tags are square and set in mono, matching the rest of the interface, and
- *     coloured on the same cheap-to-dear scale used everywhere else.
- *   - Overlapping tags collapse to dots as you zoom out, so a cluster of
- *     hospitals never becomes an unreadable pile.
- *   - Tiles come from a free, key-less source. No API key means the map cannot
- *     break because of a billing failure, which matters for a public tool.
- */
-
-/**
- * OpenFreeMap: free, no API key, no usage limits, no billing account that can
- * lapse. CARTO's basemaps now watermark unkeyed requests, and a public tool
- * should not depend on a key that can be revoked or metered. Positron is a
- * deliberately quiet style, which is what we want — every bit of colour on
- * screen should belong to the price data.
+ *   - Every pin IS a price: a white pill with the median in mono and a dot on
+ *     the same cheap-to-dear scale as the list. The basemap stays quiet; the
+ *     numbers stay legible. (The old pins were saturated blocks with white
+ *     text, which fought the map and were hard to read.)
+ *   - Pins that would overlap at the current zoom collapse into one count pill
+ *     showing how many hospitals and the cheapest of them. Click it to zoom in.
+ *   - Clicking a pin opens a receipt-style card inside the map: median, range,
+ *     cash, distance, source date, and a way to the full hospital page.
+ *   - "Use my location" asks the browser once, draws you as a steady dot with a
+ *     slow pulse, and re-centers. Nothing about the position leaves the browser
+ *     unless you press "Share this search", which puts a rounded position in
+ *     the link on purpose.
+ *   - Tiles come from a free, key-less source (OpenFreeMap Positron), so the
+ *     map cannot break because of a billing failure.
  */
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
-const SCALE = ['#0F7B72', '#4F9A4A', '#C69214', '#E2692A', '#B62419'];
 const bandFor = (price, lo, hi) => {
   if (price == null || lo == null || hi == null || hi === lo) return 2;
   const t = (price - lo) / (hi - lo);
   return Math.min(4, Math.max(0, Math.floor(t * 5)));
 };
+const SCALE = ['var(--color-p1)', 'var(--color-p2)', 'var(--color-p3)', 'var(--color-p4)', 'var(--color-p5)'];
 
-export default function HospitalMap({ items, origin, radiusMiles, selected, onSelect, priceKey = 'median' }) {
+export default function HospitalMap({
+  items, origin, originKind, radiusMiles, selected, onSelect, priceKey = 'median',
+  onUseLocation, locating = false, locateError = null,
+  onShare, shareState = 'idle', ctx = null, dicts = null,
+}) {
   const el = useRef(null);
   const map = useRef(null);
   const markers = useRef([]);
+  const youMarker = useRef(null);
   const [zoom, setZoom] = useState(6.1);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (map.current || !el.current) return;
-
-    // MapLibre draws tiles through WebGL. Where it is unavailable — disabled by
-    // the user, blocked by policy, or missing in an embedded view — the canvas
-    // stays blank while markers still position, which looks broken. Check first
-    // and fall back to the list, which carries every price anyway.
     const glOK = (() => {
       try {
         const c = document.createElement('canvas');
@@ -65,27 +64,20 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
         container: el.current,
         style: STYLE_URL,
         center: [VA_CENTER.lon, VA_CENTER.lat],
-        zoom: 6.1,
-        minZoom: 5,
-        maxZoom: 14,
+        zoom: 6.1, minZoom: 5, maxZoom: 15,
         attributionControl: { compact: true },
-        cooperativeGestures: true,   // never steal the page scroll on touch
+        cooperativeGestures: true,
       });
-    } catch {
-      setFailed(true);
-      return;
-    }
+    } catch { setFailed(true); return; }
     map.current = m;
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     m.on('moveend', () => setZoom(m.getZoom() + Math.random() * 1e-9));
     m.on('error', (e) => { if (e?.error?.status === 0) setFailed(true); });
+    m.on('click', () => onSelect?.(null));
 
     // MapLibre sizes its drawing buffer once, from whatever the container
-    // measured at construction. Inside a lazy-loaded route, a CSS grid, or a
-    // panel that starts hidden on mobile, that measurement is often near zero —
-    // and the map then renders into a sliver of a canvas for the rest of its
-    // life while markers still position correctly, so it looks blank rather
-    // than broken. Watch the box and resize whenever it actually changes.
+    // measured at construction; inside a lazy route or a grid that is often a
+    // sliver. Resize whenever the box actually changes, plus two early kicks.
     let ro;
     if (typeof ResizeObserver !== 'undefined') {
       let w = 0, h = 0;
@@ -93,15 +85,12 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
         const { width, height } = entry.contentRect;
         if (width < 2 || height < 2) return;
         if (Math.abs(width - w) < 1 && Math.abs(height - h) < 1) return;
-        w = width; h = height;
-        m.resize();
+        w = width; h = height; m.resize();
       });
       ro.observe(el.current);
     }
-    // Belt and braces for the first paint, before any resize fires.
-    const kick = setTimeout(() => m.resize(), 120);
-
-    return () => { clearTimeout(kick); ro?.disconnect(); m.remove(); map.current = null; };
+    const kicks = [120, 700].map((t) => setTimeout(() => m.resize(), t));
+    return () => { kicks.forEach(clearTimeout); ro?.disconnect(); m.remove(); map.current = null; };
   }, []);
 
   /* radius ring */
@@ -122,97 +111,107 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
         ]);
       }
       m.addSource('radius', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [pts] } } });
-      m.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': '#0B0B0C', 'fill-opacity': 0.04 } });
-      m.addLayer({ id: 'radius-line', type: 'line', source: 'radius', paint: { 'line-color': '#0B0B0C', 'line-opacity': 0.28, 'line-dasharray': [3, 3], 'line-width': 1 } });
+      m.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': '#0B7A6A', 'fill-opacity': 0.05 } });
+      m.addLayer({ id: 'radius-line', type: 'line', source: 'radius', paint: { 'line-color': '#0B7A6A', 'line-opacity': 0.45, 'line-dasharray': [2, 3], 'line-width': 1.2 } });
     };
     if (m.isStyleLoaded()) draw(); else m.once('load', draw);
   }, [origin, radiusMiles]);
 
-  /* price tags */
+  /* you / your ZIP */
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    youMarker.current?.remove(); youMarker.current = null;
+    if (!origin) return;
+    const node = document.createElement('div');
+    if (originKind === 'you') {
+      node.className = 'map-you';
+      node.setAttribute('role', 'img');
+      node.setAttribute('aria-label', 'Your location');
+    } else {
+      node.className = 'map-zip';
+      node.textContent = origin.label || 'Your ZIP';
+    }
+    youMarker.current = new maplibregl.Marker({ element: node, anchor: originKind === 'you' ? 'center' : 'bottom' })
+      .setLngLat([origin.lon, origin.lat]).addTo(m);
+  }, [origin, originKind]);
+
+  /* price pins, with clustering in screen space */
+  const placed = useMemo(() => items.filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lon)), [items]);
+  const [lo, hi] = useMemo(() => {
+    const prices = placed.map((i) => i[priceKey]).filter((p) => p != null);
+    return prices.length ? [Math.min(...prices), Math.max(...prices)] : [null, null];
+  }, [placed, priceKey]);
+
   useEffect(() => {
     const m = map.current;
     if (!m) return;
     markers.current.forEach((mk) => mk.remove());
     markers.current = [];
 
-    const placed = items.filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lon));
-    const prices = placed.map((i) => i[priceKey]).filter((p) => p != null);
-    const lo = prices.length ? Math.min(...prices) : null;
-    const hi = prices.length ? Math.max(...prices) : null;
-
-    // At low zoom a dense cluster of tags is unreadable, so a tag that would
-    // land on top of one already placed becomes a dot until you zoom in far
-    // enough to separate them. Screen-space, via the map's own projection.
-    const seen = [];
-    const collides = (it) => {
-      let x, y;
-      try { ({ x, y } = m.project([it.lon, it.lat])); } catch { return false; }
-      for (const p of seen) if (Math.abs(p.x - x) < 64 && Math.abs(p.y - y) < 22) return true;
-      seen.push({ x, y });
-      return false;
-    };
-
     const ordered = [...placed].sort((a, b) => (a[priceKey] ?? Infinity) - (b[priceKey] ?? Infinity));
+    const anchors = [];                       // { x, y, items: [] }
+    const project = (it) => { try { return m.project([it.lon, it.lat]); } catch { return null; } };
 
     for (const it of ordered) {
-      const isSel = selected === it.ccn;
-      const price = it[priceKey];
-      const band = bandFor(price, lo, hi);
-      const colour = SCALE[band];
-      const asDot = !isSel && collides(it);
-      // A ZIP-centroid pin is not the hospital's real address — it is where
-      // its ZIP code happens to be centered — so it needs to read differently
-      // on the map, not just in a tooltip nobody opens.
-      const approx = it.locationSrc === 'zip-centroid';
-      const label = `${it.name}${price != null ? `, ${fmtUSD(price, { round: true })}` : ''}`
-        + (approx ? ' (approximate location — ZIP-center pin, not the exact address)' : '');
+      const p = project(it);
+      if (!p) continue;
+      if (selected === it.ccn) { anchors.push({ x: p.x, y: p.y, items: [it], pinned: true }); continue; }
+      const hit = anchors.find((a) => !a.pinned && Math.abs(a.x - p.x) < 78 && Math.abs(a.y - p.y) < 30);
+      if (hit) hit.items.push(it); else anchors.push({ x: p.x, y: p.y, items: [it] });
+    }
 
+    for (const a of anchors) {
+      const lead = a.items[0];
+      const price = lead[priceKey];
+      const band = bandFor(price, lo, hi);
+      const approx = lead.locationSrc === 'zip-centroid';
       const node = document.createElement('button');
       node.type = 'button';
-      node.setAttribute('aria-label', label);
-      if (approx) node.title = 'Approximate location — pinned at the ZIP-code center, not the exact address';
-
-      const dashed = approx ? 'border-style:dashed;' : '';
-      if (asDot) {
-        node.style.cssText = `
-          width:11px;height:11px;border-radius:50%;cursor:pointer;padding:0;
-          background:${colour};border:1.5px solid #FFFDF9;${dashed}
-          box-shadow:0 1px 4px rgba(0,0,0,.28);transition:transform .16s cubic-bezier(.16,1,.3,1);`;
+      if (a.items.length > 1) {
+        node.className = 'map-cluster';
+        node.innerHTML = `<span class="n">${a.items.length}</span><span><span class="from">from </span>${price != null ? fmtUSD(price, { round: true }) : '—'}</span>`;
+        node.setAttribute('aria-label', `${a.items.length} hospitals here, from ${price != null ? fmtUSD(price, { round: true }) : 'no price'}. Zoom in to separate them.`);
+        node.onclick = (e) => {
+          e.stopPropagation();
+          const b = boundsOf(a.items, 0.02);
+          const z = m.getZoom();
+          if (b && z < 13) m.fitBounds(b, { padding: 80, maxZoom: Math.min(15, z + 2.5), duration: 520 });
+          else onSelect?.(lead.ccn);
+        };
       } else {
-        node.textContent = (price != null ? fmtUSD(price, { round: true }) : '—') + (approx ? ' ~' : '');
-        node.style.cssText = `
-          font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;
-          letter-spacing:-0.02em;padding:5px 7px;border-radius:2px;cursor:pointer;white-space:nowrap;
-          color:#fff;background:${colour};
-          border:${isSel ? '2px solid #0B0B0C' : '1px solid rgba(255,255,255,.9)'};${dashed}
-          box-shadow:${isSel ? '0 4px 14px rgba(0,0,0,.34)' : '0 1px 5px rgba(0,0,0,.24)'};
-          transition:transform .16s cubic-bezier(.16,1,.3,1);
-          z-index:${isSel ? 10 : 1};`;
+        node.className = 'map-pill';
+        node.dataset.band = String(band);
+        if (approx) node.dataset.approx = '1';
+        if (selected === lead.ccn) node.dataset.sel = '1';
+        node.textContent = price != null ? fmtUSD(price, { round: true }) : '—';
+        node.setAttribute('aria-label', `${lead.name}${price != null ? `, ${fmtUSD(price, { round: true })}` : ''}${approx ? ' (approximate location)' : ''}`);
+        if (approx) node.title = 'Approximate location: pinned at the ZIP-code center, not the exact address';
+        node.onclick = (e) => { e.stopPropagation(); onSelect?.(selected === lead.ccn ? null : lead.ccn); };
       }
-      node.onmouseenter = () => { node.style.transform = 'scale(1.16)'; node.style.zIndex = '20'; };
-      node.onmouseleave = () => { node.style.transform = ''; node.style.zIndex = isSel ? '10' : '1'; };
-      node.onclick = (e) => { e.stopPropagation(); onSelect?.(it.ccn); };
-
-      markers.current.push(new maplibregl.Marker({ element: node }).setLngLat([it.lon, it.lat]).addTo(m));
+      const mk = new maplibregl.Marker({ element: node, anchor: 'center' }).setLngLat([lead.lon, lead.lat]).addTo(m);
+      if (selected === lead.ccn) mk.getElement().style.zIndex = '30';
+      markers.current.push(mk);
     }
-  }, [items, selected, onSelect, priceKey, zoom]);   // zoom ticks on moveend
+  }, [placed, selected, onSelect, priceKey, zoom, lo, hi]);
 
   /* fit to the current result set */
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    const placed = items.filter((i) => Number.isFinite(i.lat));
     const b = boundsOf(origin ? [...placed, origin] : placed);
-    if (b) m.fitBounds(b, { padding: 54, maxZoom: 11, duration: 640 });
-  }, [items, origin]);
+    if (b) m.fitBounds(b, { padding: { top: 64, right: 54, bottom: 54, left: 54 }, maxZoom: 11, duration: 640 });
+  }, [placed, origin]);
 
-  /* pan to the row picked in the list */
+  /* ease to the selected hospital, leaving room for the card */
   useEffect(() => {
     const m = map.current;
     if (!m || !selected) return;
-    const it = items.find((i) => i.ccn === selected);
-    if (it && Number.isFinite(it.lat)) m.easeTo({ center: [it.lon, it.lat], zoom: Math.max(m.getZoom(), 9.5), duration: 540 });
-  }, [selected, items]);
+    const it = placed.find((i) => i.ccn === selected);
+    if (it) m.easeTo({ center: [it.lon, it.lat], zoom: Math.max(m.getZoom(), 9), offset: [0, -70], duration: 520 });
+  }, [selected, placed]);
+
+  const sel = selected ? placed.find((i) => i.ccn === selected) : null;
 
   if (failed) {
     return (
@@ -227,24 +226,128 @@ export default function HospitalMap({ items, origin, radiusMiles, selected, onSe
     );
   }
 
-  const hasApprox = items.some((i) => i.locationSrc === 'zip-centroid');
+  const hasApprox = placed.some((i) => i.locationSrc === 'zip-centroid');
 
   return (
     <div className="relative w-full h-full">
-      <div ref={el} className="w-full h-full bg-paper-2 [&_canvas]:saturate-[.55]" role="application" aria-label="Map of hospitals with published prices" />
-      {/* Bottom-right: pins cluster centre-left and the attribution owns bottom-left. */}
-      <div className="absolute right-3 bottom-8 flex flex-col items-end gap-1.5">
+      <div ref={el} className="w-full h-full bg-paper-2 [&_canvas]:saturate-[.6]" role="application" aria-label="Map of hospitals with published prices" />
+
+      {/* top-left: location + share */}
+      <div className="absolute left-3 top-3 flex flex-col items-start gap-2 max-w-[calc(100%-5rem)]">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="map-btn" onClick={onUseLocation} disabled={locating}
+                  data-on={originKind === 'you' ? '1' : undefined} aria-live="polite">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="8" />
+            </svg>
+            {locating ? 'Finding you…' : originKind === 'you' ? 'Using your location' : 'Use my location'}
+          </button>
+          <button type="button" className="map-btn" onClick={onShare} data-on={shareState === 'copied' ? '1' : undefined}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 16V4M8 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {shareState === 'copied' ? 'Link copied' : 'Share this search'}
+          </button>
+        </div>
+        {locateError && (
+          <p className="t-small bg-card/95 backdrop-blur border rule rounded-2xl px-3 py-2 max-w-[24rem] shadow-[0_2px_10px_rgb(20_18_15/0.10)]" role="status">
+            {locateError}
+          </p>
+        )}
+      </div>
+
+      {/* legend, hidden while a card is open on narrow screens */}
+      <div className={`absolute right-3 bottom-8 flex flex-col items-end gap-1.5 ${sel ? 'hidden sm:flex' : 'flex'}`}>
         {hasApprox && (
-          <div className="bg-card/95 backdrop-blur border rule rounded-full px-3 py-1 pointer-events-none shadow-[0_2px_10px_rgb(20_18_15/0.10)]">
-            <span className="t-small opacity-55 text-[0.6875rem]">~ dashed pin: approximate (ZIP-center) location</span>
+          <div className="bg-card/95 backdrop-blur border rule rounded-full px-3 py-1 pointer-events-none">
+            <span className="t-small opacity-55 text-[0.6875rem]">hollow dot: approximate (ZIP-center) location</span>
           </div>
         )}
-        <div className="bg-card/95 backdrop-blur border rule rounded-full px-3 py-1.5 pointer-events-none shadow-[0_2px_10px_rgb(20_18_15/0.10)]">
+        <div className="bg-card/95 backdrop-blur border rule rounded-full px-3 py-1.5 pointer-events-none">
           <div className="flex items-center gap-1.5">
             <span className="t-small opacity-55 text-[0.6875rem]">cheaper</span>
             {SCALE.map((c) => <span key={c} className="w-3.5 h-2 rounded-[1px]" style={{ background: c }} />)}
             <span className="t-small opacity-55 text-[0.6875rem]">dearer</span>
           </div>
+        </div>
+      </div>
+
+      {sel && <DetailCard row={sel} lo={lo} hi={hi} priceKey={priceKey} ctx={ctx} dicts={dicts} onClose={() => onSelect?.(null)} showDistance={!!origin} />}
+    </div>
+  );
+}
+
+/** A receipt for one hospital, anchored inside the map. */
+function DetailCard({ row, lo, hi, priceKey, ctx, dicts, onClose, showDistance }) {
+  const price = row[priceKey];
+  const band = bandFor(price, lo, hi);
+  const charges = chargeSummaryFor(row.charges, ctx);
+  const src = row.sources?.[0];
+  const updated = src?.updated || null;
+  const stale = updated ? (Date.now() - new Date(updated).getTime()) > 365 * 864e5 : null;
+  const n = row.prices?.length || 0;
+  const spread = row.low != null && row.high != null && row.high !== row.low;
+  const pos = spread && price != null ? Math.max(0, Math.min(1, (price - row.low) / (row.high - row.low))) : 0.5;
+  const scrollToRow = () => document.getElementById(`h-${row.ccn}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  return (
+    <div className="map-card absolute left-3 right-3 sm:right-auto sm:w-[22.5rem] bottom-8 bg-card rounded-[20px] border rule shadow-[0_18px_48px_-14px_rgb(20_18_15/0.35)] overflow-hidden" role="dialog" aria-label={`${row.name} details`}>
+      <span aria-hidden="true" className="block h-[3px]" style={{ background: SCALE[band] }} />
+      <div className="px-4 pt-3.5 pb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-[0.9375rem] leading-snug truncate">{row.name}</p>
+            <p className="t-small opacity-60 mt-0.5">
+              {row.city}
+              {showDistance && row.miles != null && <> · {row.miles.toFixed(0)} mi straight line, about {approxRoadMiles(row.miles).toFixed(0)} by road</>}
+              {row.locationSrc === 'zip-centroid' && <> · approximate location</>}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close details"
+                  className="w-7 h-7 -mt-1 -mr-1 rounded-full grid place-items-center opacity-50 hover:opacity-100 hover:bg-paper-2 transition shrink-0">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+
+        <div className="mt-3 flex items-baseline justify-between gap-3">
+          <div>
+            <p className="t-label opacity-45">Median negotiated</p>
+            <p className="t-num text-[1.75rem] leading-none mt-1 tabular-nums">{price != null ? fmtUSD(price, { round: true }) : '—'}</p>
+          </div>
+          {charges?.cashLow != null && (
+            <div className="text-right">
+              <p className="t-label opacity-45">Cash price</p>
+              <p className="t-num text-[1.125rem] leading-none mt-1 tabular-nums">
+                {charges.cashHigh != null && charges.cashHigh !== charges.cashLow
+                  ? `${fmtUSD(charges.cashLow, { round: true })}–${fmtUSD(charges.cashHigh, { round: true })}`
+                  : fmtUSD(charges.cashLow, { round: true })}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {spread && (
+          <div className="mt-3">
+            <div className="relative h-1.5 rounded-full bg-paper-3">
+              <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: '100%', background: 'linear-gradient(90deg, var(--color-p1), var(--color-p3), var(--color-p5))', opacity: .35 }} />
+              <span className="absolute top-1/2 w-3 h-3 -mt-1.5 -ml-1.5 rounded-full bg-ink border-2 border-white shadow" style={{ left: `${pos * 100}%` }} />
+            </div>
+            <div className="flex justify-between mt-1.5 t-small opacity-55 tabular-nums">
+              <span>{fmtUSD(row.low, { round: true })}</span>
+              <span>{n} plan {n === 1 ? 'rate' : 'rates'}</span>
+              <span>{fmtUSD(row.high, { round: true })}</span>
+            </div>
+          </div>
+        )}
+
+        <p className="t-small opacity-55 mt-3">
+          {updated ? <>Source file dated {updated}{stale ? ', over a year old' : ''}</> : 'Source date not declared'}
+          {(row.formula?.length || 0) > 0 && <> · {row.formula.length} formula-based {row.formula.length === 1 ? 'rate' : 'rates'}</>}
+        </p>
+
+        <div className="mt-3.5 flex gap-2">
+          <button type="button" onClick={scrollToRow} className="chip">Show in list</button>
+          {row.ccn && <Link to={`/hospital/${row.ccn}`} className="chip" data-on>Hospital page</Link>}
         </div>
       </div>
     </div>

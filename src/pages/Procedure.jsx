@@ -9,7 +9,7 @@ import {
   METHOD_GROUPS, isFormulaOnly,
 } from '../lib/prices.js';
 import { estimate, emptyBenefits, fmtUSD } from '../lib/estimate.js';
-import { withDistance, zipToPoint, isValidZip, approxRoadMiles } from '../lib/geo.js';
+import { withDistance, zipToPoint, isValidZip, approxRoadMiles, withinVirginia } from '../lib/geo.js';
 import useDocumentMeta from '../lib/useDocumentMeta.js';
 import InsuranceWizard from '../components/InsuranceWizard.jsx';
 import InsuranceCue from '../components/InsuranceCue.jsx';
@@ -79,6 +79,14 @@ export default function Procedure() {
   const [sort, setSort] = useState('price');
   const [showMap, setShowMap] = useState(true);
   const [linkCopied, setLinkCopied] = useState(false);
+  // Browser geolocation, only ever on request. `near=lat,lon` in a shared link
+  // restores it; the value is rounded to ~100 m before it is ever written.
+  const [geo, setGeo] = useState(() => {
+    const m = /^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(params.get('near') || '');
+    return m ? { lat: +m[1], lon: +m[2] } : null;
+  });
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState(null);
   // What counts as one comparable thing. Null until the dictionaries say what
   // settings and billing classes this dataset actually distinguishes.
   const [ctx, setCtx] = useState(null);
@@ -145,6 +153,7 @@ export default function Procedure() {
   const copyShareLink = async () => {
     const next = new URLSearchParams(params);
     zip ? next.set('zip', zip) : next.delete('zip');
+    geo ? next.set('near', `${geo.lat},${geo.lon}`) : next.delete('near');
     radius ? next.set('r', String(radius)) : next.delete('r');
     const qs = next.toString();
     const shareUrl = `${location.origin}${location.pathname}${qs ? `?${qs}` : ''}`;
@@ -165,7 +174,32 @@ export default function Procedure() {
       : undefined,
   );
 
-  const origin = useMemo(() => (zips && isValidZip(zip) ? zipToPoint(zips, zip) : null), [zips, zip]);
+  const zipPoint = useMemo(() => (zips && isValidZip(zip) ? zipToPoint(zips, zip) : null), [zips, zip]);
+  // Your position wins over a typed ZIP; the ZIP stays as a fallback.
+  const origin = useMemo(() => (geo ? { lat: geo.lat, lon: geo.lon } : zipPoint ? { ...zipPoint, label: `ZIP ${zip}` } : null), [geo, zipPoint, zip]);
+  const originKind = geo ? 'you' : zipPoint ? 'zip' : null;
+  const originLabel = geo ? 'you' : zip;
+
+  const useMyLocation = () => {
+    if (!('geolocation' in navigator)) { setLocateError('This browser cannot share a location. Enter a ZIP instead.'); return; }
+    setLocating(true); setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = +pos.coords.latitude.toFixed(3), lon = +pos.coords.longitude.toFixed(3);
+        setGeo({ lat, lon });
+        setLocating(false);
+        if (!withinVirginia(lat, lon)) setLocateError('You appear to be outside Virginia. Distances are measured from where you are anyway.');
+        if (!radius) setRadius(50);
+      },
+      (err) => {
+        setLocating(false);
+        setLocateError(err.code === 1
+          ? 'Location permission was declined. Enter a ZIP instead; nothing is stored either way.'
+          : 'Your location could not be determined. Enter a ZIP instead.');
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
+  };
 
   /** The payer indices that belong to the chosen carrier. */
   const brandMembers = useMemo(() => {
@@ -340,7 +374,7 @@ export default function Procedure() {
             </span>
             <span className="t-small opacity-60 tnum">
               {origin && radius
-                ? <>Showing <strong>{priced.length}</strong> {priced.length === 1 ? 'hospital' : 'hospitals'} within {radius} miles of {zip}</>
+                ? <>Showing <strong>{priced.length}</strong> {priced.length === 1 ? 'hospital' : 'hospitals'} within {radius} miles of {originLabel}</>
                 : <><strong>{priced.length}</strong> Virginia {priced.length === 1 ? 'hospital publishes' : 'hospitals publish'} a price</>}
             </span>
             {origin && radius > 0 && hiddenByRadius > 0 && (
@@ -404,16 +438,20 @@ export default function Procedure() {
             />
           </div>
 
-          {zip && (
+          <button onClick={useMyLocation} className="chip" type="button" data-on={originKind === 'you'} disabled={locating}>
+            {locating ? 'Finding you…' : originKind === 'you' ? 'Using your location' : 'Use my location'}
+          </button>
+
+          {(zip || geo) && (
             <button onClick={copyShareLink} className="chip" type="button">
-              {linkCopied ? 'Link copied' : 'Copy link with my ZIP'}
+              {linkCopied ? 'Link copied' : geo ? 'Share this search' : 'Copy link with my ZIP'}
             </button>
           )}
 
           <div className="flex items-center gap-1.5">
             {RADII.map((r) => (
               <button key={r} onClick={() => setRadius(r)} data-on={radius === r} className="chip"
-                      disabled={!origin && r !== 0} title={!origin && r !== 0 ? 'Enter your ZIP first' : undefined}>
+                      disabled={!origin && r !== 0} title={!origin && r !== 0 ? 'Enter your ZIP or use your location first' : undefined}>
                 {r === 0 ? 'All' : `${r} mi`}
               </button>
             ))}
@@ -578,7 +616,7 @@ export default function Procedure() {
               <p className="t-title !text-[1.25rem]">No hospitals match.</p>
               <p className="t-body mt-3 opacity-70 max-w-[44ch] mx-auto">
                 {origin && radius
-                  ? `No hospital within ${radius} miles of ${zip} published a price for this procedure${brand ? ` for ${brand}` : ''}.`
+                  ? `No hospital within ${radius} miles of ${originLabel} published a price for this procedure${brand ? ` for ${brand}` : ''}.`
                   : 'Try widening the search or clearing the insurer filter.'}
               </p>
               <div className="flex gap-2 justify-center mt-6">
@@ -642,9 +680,12 @@ export default function Procedure() {
                 <Suspense fallback={<div className="w-full h-full shimmer" />}>
                   <HospitalMap
                     items={rows.filter((r) => r.median != null)}
-                    origin={origin} radiusMiles={radius || null}
+                    origin={origin} originKind={originKind} radiusMiles={radius || null}
                     selected={selected} onSelect={setSelected}
                     priceKey="median"
+                    onUseLocation={useMyLocation} locating={locating} locateError={locateError}
+                    onShare={copyShareLink} shareState={linkCopied ? 'copied' : 'idle'}
+                    ctx={ctx} dicts={dicts}
                   />
                 </Suspense>
               ) : (
