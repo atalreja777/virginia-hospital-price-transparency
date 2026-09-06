@@ -235,7 +235,7 @@ export default function HospitalMap({
       <div ref={el} className="w-full h-full bg-paper-2 [&_canvas]:saturate-[.6]" role="application" aria-label="Map of hospitals with published prices" />
 
       {/* top-left: location + share */}
-      <div className="absolute left-3 top-3 flex flex-col items-start gap-2 max-w-[calc(100%-5rem)]">
+      <div className="absolute left-3 top-3 z-[5] flex flex-col items-start gap-2 max-w-[calc(100%-5rem)]">
         <div className="flex flex-wrap gap-2">
           <button type="button" className="map-btn" onClick={onUseLocation} disabled={locating}
                   data-on={originKind === 'you' ? '1' : undefined} aria-live="polite">
@@ -259,7 +259,7 @@ export default function HospitalMap({
       </div>
 
       {/* legend, hidden while a card is open on narrow screens */}
-      <div className={`absolute right-3 bottom-8 flex flex-col items-end gap-1.5 ${sel ? 'hidden sm:flex' : 'flex'}`}>
+      <div className={`absolute right-3 bottom-8 z-[4] flex flex-col items-end gap-1.5 ${sel ? 'hidden sm:flex' : 'flex'}`}>
         {hasApprox && (
           <div className="bg-card/95 backdrop-blur border rule rounded-full px-3 py-1 pointer-events-none">
             <span className="t-small opacity-55 text-[0.6875rem]">hollow dot: approximate (ZIP-center) location</span>

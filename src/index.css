@@ -466,7 +466,7 @@
 .map-btn:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
 .map-btn[data-on="1"] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
 /* The detail card: a receipt for one hospital, anchored inside the map. */
-.map-card { animation: card-in .26s var(--ease-out-expo) both; }
+.map-card { animation: card-in .26s var(--ease-out-expo) both; z-index: 6; }   /* above pins (3), below the page's sticky bar (30) */
 @keyframes card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .map-card { animation: none; } }
 .maplibregl-ctrl-group { border-radius: 999px !important; overflow: hidden; box-shadow: 0 1px 2px rgb(20 18 15 / 0.08), 0 6px 18px -10px rgb(20 18 15 / 0.35) !important; }
