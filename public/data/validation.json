@@ -1,6 +1,6 @@
 {
-  "validatedAt": "2026-09-05T03:26:39.218Z",
-  "dataDir": "/Users/atalreja/Developer/virginia-hospital-price-transparency/pipeline/out/2026-09-04-va-r9/data",
+  "validatedAt": "2026-09-06T00:36:55.652Z",
+  "dataDir": "/Users/atalreja/Developer/virginia-hospital-price-transparency/pipeline/out/2026-09-05-va-r11/data",
   "passed": true,
   "failures": [],
   "warnings": [],
@@ -108,12 +108,12 @@
     {
       "name": "meta.counts.codes matches the shards",
       "ok": true,
-      "detail": "18007 vs 18007"
+      "detail": "18033 vs 18033"
     },
     {
       "name": "meta.counts.priceEntries matches the shards",
       "ok": true,
-      "detail": "8381991 vs 8381991"
+      "detail": "8998615 vs 8998615"
     },
     {
       "name": "meta.counts.withheldEntries matches the shards",
@@ -123,27 +123,27 @@
     {
       "name": "meta.counts.formulaEntries matches the shards",
       "ok": true,
-      "detail": "469047 vs 469047"
+      "detail": "623734 vs 623734"
     },
     {
       "name": "meta.counts.chargeEntries matches the shards",
       "ok": true,
-      "detail": "1221404 vs 1221404"
+      "detail": "1293275 vs 1293275"
     },
     {
       "name": "hospitalsWithPrices is a real number",
       "ok": true,
-      "detail": "86"
+      "detail": "97"
     },
     {
       "name": "hospitalsWithPrices matches the shards",
       "ok": true,
-      "detail": "86 vs 86"
+      "detail": "97 vs 97"
     },
     {
       "name": "search index covers every code in the shards",
       "ok": true,
-      "detail": "18007 vs 18007"
+      "detail": "18033 vs 18033"
     },
     {
       "name": "meta declares the shard contract",
@@ -173,7 +173,7 @@
     {
       "name": "stats totals agree with the shards",
       "ok": true,
-      "detail": "8381991 vs 8381991"
+      "detail": "8998615 vs 8998615"
     },
     {
       "name": "payer groups cover every payer",
@@ -183,27 +183,27 @@
     {
       "name": "stats.spread.comparableProcedures survives an independent recompute",
       "ok": true,
-      "detail": "13123 vs recomputed 13123"
+      "detail": "13180 vs recomputed 13180"
     },
     {
       "name": "stats.spread.medianRatio survives an independent recompute",
       "ok": true,
-      "detail": "3.047248741247327 vs recomputed 3.047248741247327"
+      "detail": "3.1163342145819497 vs recomputed 3.1163342145819497"
     },
     {
       "name": "stats.spread.over2x survives an independent recompute",
       "ok": true,
-      "detail": "9775 vs recomputed 9775"
+      "detail": "10079 vs recomputed 10079"
     },
     {
       "name": "stats.spread.over5x survives an independent recompute",
       "ok": true,
-      "detail": "3014 vs recomputed 3014"
+      "detail": "3738 vs recomputed 3738"
     },
     {
       "name": "stats.spread.over10x survives an independent recompute",
       "ok": true,
-      "detail": "1268 vs recomputed 1268"
+      "detail": "1819 vs recomputed 1819"
     },
     {
       "name": "no single shard would stall a phone (>3 MB)",
@@ -212,19 +212,19 @@
     }
   ],
   "observed": {
-    "codes": 18007,
-    "priceEntries": 8381991,
+    "codes": 18033,
+    "priceEntries": 8998615,
     "withheldEntries": 10,
-    "formulaEntries": 469047,
-    "chargeEntries": 1221404,
-    "hospitalsWithPrices": 86,
-    "bytes": 285635977
+    "formulaEntries": 623734,
+    "chargeEntries": 1293275,
+    "hospitalsWithPrices": 97,
+    "bytes": 307714016
   },
   "recomputedSpread": {
-    "comparableProcedures": 13123,
-    "medianRatio": 3.047248741247327,
-    "over2x": 9775,
-    "over5x": 3014,
-    "over10x": 1268
+    "comparableProcedures": 13180,
+    "medianRatio": 3.1163342145819497,
+    "over2x": 10079,
+    "over5x": 3738,
+    "over10x": 1819
   }
 }
