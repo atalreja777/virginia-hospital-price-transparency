@@ -241,7 +241,7 @@ has_rel(){ [ -n "$(pq "SELECT 1 FROM pg_class WHERE relname='$1'")" ]; }
 if has_rel v_publishable_version && has_rel version_loads; then
   ORIG_RATES_SRC="v_public_release_rates (staged via v_publishable_version + version_loads)"
   ORIG_ITEMS_SRC="v_public_release_items (staged via v_publishable_version + version_loads)"
-  STAGE_SQL="INSERT INTO x_pub SELECT p.hospital_id, p.file_version_id, vl.generation FROM v_publishable_version p JOIN version_loads vl ON vl.hospital_id = p.hospital_id AND vl.file_version_id = p.file_version_id AND vl.is_current_load WHERE p.hospital_id = $ARR;
+  STAGE_SQL="INSERT INTO x_pub SELECT p.hospital_id, p.file_version_id, COALESCE(vl.generation, 1) FROM v_publishable_version p LEFT JOIN version_loads vl ON vl.hospital_id = p.hospital_id AND vl.file_version_id = p.file_version_id AND vl.is_current_load WHERE p.hospital_id = $ARR;
 INSERT INTO x_rates SELECT $R_COLS FROM rates r JOIN x_pub p ON p.hospital_id = r.hospital_id AND p.file_version_id = r.file_version_id AND r.load_generation = p.generation WHERE r.hospital_id = $ARR AND r.quality_labels = '{}' AND (r.negotiated_dollar > 0 OR r.derived_dollar IS NOT NULL OR r.negotiated_percentage IS NOT NULL OR r.negotiated_algorithm IS NOT NULL OR r.median_amount IS NOT NULL OR r.p10_amount IS NOT NULL OR r.p90_amount IS NOT NULL OR r.estimated_amount IS NOT NULL);
 INSERT INTO x_items SELECT $I_COLS FROM items i JOIN x_pub p ON p.hospital_id = i.hospital_id AND p.file_version_id = i.file_version_id AND i.load_generation = p.generation WHERE i.hospital_id = $ARR AND i.quality_labels = '{}';"
 else
