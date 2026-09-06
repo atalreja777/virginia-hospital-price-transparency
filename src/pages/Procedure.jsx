@@ -76,6 +76,7 @@ export default function Procedure() {
   const [view, setView] = useState('list');     // list | chart
   const [switching, setSwitching] = useState(false);   // procedure search open
   const [selected, setSelected] = useState(null);
+  const [hovered, setHovered] = useState(null);       // list row <-> map pin linkage
   const [sort, setSort] = useState('price');
   const [showMap, setShowMap] = useState(true);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -367,7 +368,7 @@ export default function Procedure() {
     <div className="pt-16">
       {/* ------------------------------------------------------------ header */}
       <header className={`border-b rule bg-paper ${switching ? 'relative z-40' : ''}`}>
-        <div className="max-w-[92rem] mx-auto px-5 sm:px-8 py-8 sm:py-10">
+        <div className="max-w-[100rem] mx-auto px-5 sm:px-8 py-5 sm:py-6">
           <div className="flex flex-wrap items-center gap-2.5 mb-4">
             <span className="t-mono text-[0.6875rem] px-2.5 py-1 rounded-full bg-paper-3 tnum">
               {type === 'MS-DRG' ? 'DRG' : type} {code}
@@ -385,10 +386,17 @@ export default function Procedure() {
 
             {/* Sits with the metadata rather than beside the title, where it was
                 competing with the one thing the page is about. */}
+            <button onClick={copyShareLink} type="button"
+                    className="ml-auto inline-flex items-center gap-1.5 t-small font-medium opacity-55 hover:opacity-100 transition-opacity">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 16V4M8 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {linkCopied ? 'Link copied' : 'Share this search'}
+            </button>
             <button
               onClick={() => setSwitching((v) => !v)}
               aria-expanded={switching}
-              className="ml-auto inline-flex items-center gap-1.5 t-small font-medium opacity-55 hover:opacity-100 transition-opacity"
+              className="inline-flex items-center gap-1.5 t-small font-medium opacity-55 hover:opacity-100 transition-opacity"
             >
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <circle cx="9" cy="9" r="6.25" /><path d="m13.6 13.6 4 4" strokeLinecap="round" />
@@ -397,7 +405,7 @@ export default function Procedure() {
             </button>
           </div>
 
-          <h1 className="t-title max-w-[36ch]">{data.desc || `Code ${code}`}</h1>
+          <h1 className="t-title !text-[clamp(1.5rem,2.6vw,2.125rem)] max-w-[40ch]">{data.desc || `Code ${code}`}</h1>
 
           {/* Switching procedure here rather than sending people back to the
               home page — comparing two procedures is a normal thing to want,
@@ -413,7 +421,7 @@ export default function Procedure() {
           )}
 
           {cheapest && dearest && savings > 0 && (
-            <p className="t-lede mt-5 max-w-[52ch] opacity-80">
+            <p className="t-body mt-3 max-w-[64ch] opacity-75">
               Within your search, the price runs from{' '}
               <strong className="font-semibold tnum">{fmtUSD(cheapest.median, { round: true })}</strong>{' '}
               at {cheapest.name?.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())} to{' '}
@@ -426,8 +434,11 @@ export default function Procedure() {
       </header>
 
       {/* ----------------------------------------------------------- controls */}
+      {locateError && (
+        <p role="status" className="max-w-[100rem] mx-auto px-5 sm:px-8 pt-2 t-small opacity-70">{locateError}</p>
+      )}
       <div className={`sticky top-16 bg-paper/92 backdrop-blur-xl border-b rule no-print ${switching ? 'z-20' : 'z-30'}`}>
-        <div className="max-w-[92rem] mx-auto px-5 sm:px-8 py-3 flex flex-wrap items-center gap-2.5">
+        <div className="max-w-[100rem] mx-auto px-5 sm:px-8 py-3 flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-2">
             <label htmlFor="zip" className="t-label opacity-50">Your ZIP</label>
             <input
@@ -442,11 +453,6 @@ export default function Procedure() {
             {locating ? 'Finding you…' : originKind === 'you' ? 'Using your location' : 'Use my location'}
           </button>
 
-          {(zip || geo) && (
-            <button onClick={copyShareLink} className="chip" type="button">
-              {linkCopied ? 'Link copied' : geo ? 'Share this search' : 'Copy link with my ZIP'}
-            </button>
-          )}
 
           <div className="flex items-center gap-1.5">
             {RADII.map((r) => (
@@ -471,9 +477,17 @@ export default function Procedure() {
             What is being compared
           </button>
 
-          <button onClick={() => setShowMap((v) => !v)} className="chip ml-auto lg:hidden" data-on={showMap}>
-            {showMap ? 'Hide map' : 'Show map'}
+          <button onClick={openIns} className="chip" data-on={!!(brand || usingBenefits)}>
+            {brand || usingBenefits ? 'Change insurance' : 'Add insurance'}
           </button>
+          <div className="ml-auto lg:hidden inline-flex p-0.5 rounded-full bg-paper-2 border rule" role="group" aria-label="Map or list">
+            {[['map', 'Map'], ['list', 'List']].map(([k, label]) => (
+              <button key={k} onClick={() => setShowMap(k === 'map')} aria-pressed={showMap === (k === 'map')}
+                      className={`px-3.5 h-8 rounded-full text-[0.8125rem] font-semibold transition-all ${showMap === (k === 'map') ? 'bg-ink text-paper' : 'opacity-60'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* What counts as one comparable thing. A median over a case rate and a
@@ -578,9 +592,9 @@ export default function Procedure() {
       </div>
 
       {/* --------------------------------------------------------------- body */}
-      <div className="max-w-[92rem] mx-auto px-5 sm:px-8 py-8 grid lg:grid-cols-[1fr_minmax(0,29rem)] gap-8">
+      <div className="max-w-[100rem] mx-auto px-5 sm:px-8 py-5 sm:py-6 grid lg:grid-cols-[minmax(20rem,24rem)_minmax(0,1fr)] gap-6">
         {/* list */}
-        <div className="order-2 lg:order-1 min-w-0">
+        <div className={`order-2 lg:order-1 min-w-0 ${showMap ? 'hidden lg:block' : ''}`}>
           <div className="flex items-center justify-between gap-4 mb-5 flex-wrap">
             <div className="inline-flex p-1 rounded-full bg-paper-2 border rule">
               {[['list', 'List'], ['chart', 'Price vs distance']].map(([k, label]) => (
@@ -595,9 +609,6 @@ export default function Procedure() {
                 </button>
               ))}
             </div>
-            <button onClick={openIns} className="btn btn-ghost !py-2 !px-4 !text-[0.8125rem]">
-              {brand || usingBenefits ? 'Change insurance' : 'Add your insurance'}
-            </button>
           </div>
 
           {view === 'chart' && rows.length > 0 && (
@@ -637,6 +648,8 @@ export default function Procedure() {
                   dearest={dearest?.median ?? null}
                   cheapest={cheapest?.ccn === r.ccn}
                   selected={selected === r.ccn}
+                  hovered={hovered === r.ccn}
+                  onHover={setHovered}
                   onSelect={() => setSelected(selected === r.ccn ? null : r.ccn)}
                   dicts={dicts}
                   ctx={ctx}
@@ -648,11 +661,12 @@ export default function Procedure() {
             </ul>
           ) : null}
 
-          <p className="t-small opacity-55 mt-7 max-w-[62ch]">
+          <p className="t-small opacity-55 mt-6 max-w-[62ch]">
             Prices come from each hospital's own machine-readable file. They are estimates for
             planning, not a bill or a quote. A hospital stay usually involves several codes —
-            the surgeon, the anaesthetist and the facility may bill separately. Confirm with the
-            hospital and your insurer before you schedule anything.
+            the surgeon, the anaesthetist and the facility may bill separately. Distances are
+            straight lines; driving is roughly a quarter further. Confirm with the hospital and
+            your insurer before you schedule anything.
           </p>
         </div>
 
@@ -676,27 +690,30 @@ export default function Procedure() {
         {/* map */}
         <div className={`order-1 lg:order-2 ${showMap ? '' : 'hidden lg:block'}`}>
           <div className="lg:sticky lg:top-[8.5rem]">
-            <div ref={mapWrapRef} className="panel overflow-hidden h-[22rem] lg:h-[calc(100vh-11rem)]">
+            <div ref={mapWrapRef} className="panel overflow-hidden h-[min(70vh,34rem)] lg:h-[min(calc(100vh-11rem),46rem)]">
               {mapInView ? (
                 <Suspense fallback={<div className="w-full h-full shimmer" />}>
                   <HospitalMap
                     items={rows.filter((r) => r.median != null)}
                     origin={origin} originKind={originKind} radiusMiles={radius || null}
                     selected={selected} onSelect={setSelected}
-                    priceKey="median"
-                    onUseLocation={useMyLocation} locating={locating} locateError={locateError}
-                    onShare={copyShareLink} shareState={linkCopied ? 'copied' : 'idle'}
-                    ctx={ctx} dicts={dicts}
+                    hovered={hovered} onHover={setHovered}
+                    priceKey="median" ctx={ctx}
                   />
                 </Suspense>
               ) : (
                 <div className="w-full h-full shimmer" />
               )}
             </div>
-            <p className="t-small opacity-50 mt-2.5">
-              Pins show each hospital's median negotiated price. Colour runs from the cheapest
-              in this search to the dearest. Straight-line distance; driving is roughly a quarter further.
-            </p>
+            {cheapest && dearest && (
+              <div className="flex items-center gap-3 mt-3 px-1">
+                <span className="t-small opacity-60 shrink-0">Hospital median prices</span>
+                <span className="t-small tabular-nums opacity-70">{fmtUSD(cheapest.median, { round: true })}</span>
+                <span className="map-legend flex-1 max-w-[18rem]" aria-hidden="true" />
+                <span className="t-small tabular-nums opacity-70">{fmtUSD(dearest.median, { round: true })}</span>
+                <span className="t-small opacity-45 hidden sm:inline">· lowest is teal · hollow dot: approximate location</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

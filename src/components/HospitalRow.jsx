@@ -67,7 +67,7 @@ function Figure({ label, help, low, high, colour, top }) {
  */
 export default function HospitalRow({
   row, rank, band, cheapest, selected, onSelect, dicts, estimateFn, showDistance,
-  domainLow, domainHigh, dearest, ctx, groupByIndex,
+  domainLow, domainHigh, dearest, ctx, groupByIndex, hovered = false, onHover,
 }) {
   const est = estimateFn && row.median != null ? estimateFn(row.median) : null;
   const spread = row.low != null && row.high != null && row.high > row.low;
@@ -101,10 +101,14 @@ export default function HospitalRow({
   return (
     <li
       id={row.ccn ? `h-${row.ccn}` : undefined}
-      className={`relative rounded-[24px] overflow-hidden transition-all duration-300
+      onMouseEnter={() => onHover?.(row.ccn)} onMouseLeave={() => onHover?.(null)}
+      onFocus={() => onHover?.(row.ccn)} onBlur={() => onHover?.(null)}
+      className={`relative rounded-[20px] overflow-hidden transition-all duration-300
         ${selected
-          ? 'bg-card shadow-[0_10px_36px_-10px_rgb(20_18_15/0.18)] ring-1 ring-[color:var(--color-rule)]'
-          : 'bg-card/70 hover:bg-card hover:shadow-[0_6px_24px_-10px_rgb(20_18_15/0.14)] ring-1 ring-[color:var(--color-rule)]/70'}`}
+          ? 'bg-card shadow-[0_10px_36px_-10px_rgb(20_18_15/0.18)] ring-1 ring-[color:var(--color-ink)]'
+          : hovered
+            ? 'bg-card shadow-[0_6px_24px_-10px_rgb(20_18_15/0.14)] ring-1 ring-[color:var(--color-rule)]'
+            : 'bg-card/70 hover:bg-card hover:shadow-[0_6px_24px_-10px_rgb(20_18_15/0.14)] ring-1 ring-[color:var(--color-rule)]/70'}`}
     >
       {/* colour strip: the same scale as the map pin, so a card and a pin are
           obviously the same hospital */}
@@ -112,7 +116,7 @@ export default function HospitalRow({
 
       <button
         type="button" onClick={onSelect} aria-expanded={selected}
-        className="w-full text-left px-5 sm:px-6 pt-6 pb-5"
+        className="w-full text-left px-4 sm:px-5 pt-4 pb-4"
       >
         <div className="flex items-start gap-4 sm:gap-6">
           <span className="shrink-0 w-8 h-8 rounded-full grid place-items-center text-[0.75rem] font-bold tabular-nums"
@@ -131,7 +135,7 @@ export default function HospitalRow({
               {titleCase(row.city)}
               {showDistance && row.miles != null && (
                 <> · <span className="tabular-nums">{row.miles.toFixed(0)} mi</span>
-                  <span className="opacity-70"> (approx. {approxRoadMiles(row.miles).toFixed(0)} road miles — straight line × 1.25)</span></>
+                  <span className="opacity-70 tabular-nums">, ~{approxRoadMiles(row.miles).toFixed(0)} by road</span></>
               )}
             </span>
           </span>
