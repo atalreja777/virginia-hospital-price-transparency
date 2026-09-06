@@ -23,20 +23,35 @@ const HospitalMap = lazy(() => import('../components/HospitalMap.jsx'));
 const RADII = [10, 25, 50, 100, 0];
 const radiusLabel = (r) => (r === 0 ? 'Anywhere in Virginia' : `${r} miles`);
 
-/** Only mount the map once its container is actually about to be seen. */
-function useInView(ref) {
+/**
+ * Only mount the map once its container is actually about to be seen.
+ *
+ * Returns [inView, ref]. The ref is a callback ref, not a useRef: the map
+ * panel does not exist until the price data has loaded, so an effect that
+ * looked at `ref.current` once on mount saw null, attached no observer, and
+ * never ran again — the map stayed a grey placeholder forever. A callback ref
+ * fires when the element is actually inserted, which is when observing it
+ * means something.
+ */
+function useInView() {
   const [inView, setInView] = useState(false);
+  const [node, setNode] = useState(null);
   useEffect(() => {
-    if (inView || !ref.current) return;
+    if (inView || !node) return;
     if (typeof IntersectionObserver === 'undefined') { setInView(true); return; }
     const obs = new IntersectionObserver(
       (entries) => { if (entries.some((e) => e.isIntersecting)) { setInView(true); obs.disconnect(); } },
       { rootMargin: '200px' },
     );
-    obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [inView, ref]);
-  return inView;
+    obs.observe(node);
+    // IntersectionObserver reports nothing while the document is hidden (a
+    // background tab, a preview pane) and can lag on a cold page. The panel is
+    // on screen for practically every visitor, so after a short grace period
+    // mount the map regardless rather than leave a grey box.
+    const fallback = setTimeout(() => setInView(true), 1500);
+    return () => { obs.disconnect(); clearTimeout(fallback); };
+  }, [inView, node]);
+  return [inView, setNode];
 }
 
 export default function Procedure() {
@@ -72,8 +87,7 @@ export default function Procedure() {
 
   const closeIns = useCallback(() => setInsOpen(false), []);
   const openIns = useCallback(() => setInsOpen(true), []);
-  const mapWrapRef = useRef(null);
-  const mapInView = useInView(mapWrapRef);
+  const [mapInView, mapWrapRef] = useInView();
 
   useEffect(() => {
     // `alive` — not a real network abort — is what actually has to protect
